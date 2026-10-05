@@ -1,0 +1,25 @@
+{
+  "name": "StockSync API",
+  "dockerComposeFile": "../compose.yaml",
+  "service": "api",
+  "workspaceFolder": "/app",
+  "remoteUser": "node",
+  "overrideCommand": false,
+  "shutdownAction": "none",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "os-provided",
+      "ppa": false
+    }
+  },
+  "postStartCommand": "git config --global --replace-all safe.directory /app",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "typescript.tsdk": "apps/api/node_modules/typescript/lib",
+        "eslint.workingDirectories": ["./apps/api"]
+      },
+      "extensions": ["dbaeumer.vscode-eslint"]
+    }
+  }
+}

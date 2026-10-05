@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.test-build/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+*.tsbuildinfo
+.DS_Store
+.agents/
+.codex/
+.aws/
+AGENTS.md
+docs/
+CPP Digital - StockSync - Technical Assesment.pdf

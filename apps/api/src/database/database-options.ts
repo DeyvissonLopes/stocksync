@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import type { DataSourceOptions } from 'typeorm';
 import { ConfigurationError } from '../config/app-config.js';
+import { UserEntity } from './entities/user.entity.js';
 
 type Prefix = 'DB' | 'TEST_DB';
 type Field = `${Prefix}_${'HOST' | 'PORT' | 'USER' | 'PASSWORD' | 'NAME'}`;
@@ -55,7 +56,7 @@ export function loadDatabaseOptions(env: NodeJS.ProcessEnv): DataSourceOptions {
     ...selected,
     synchronize: false,
     migrationsRun: false,
-    entities: [],
+    entities: [UserEntity],
     migrations: [join(fileURLToPath(new URL('.', import.meta.url)), 'migrations', '*.js')],
   };
 }

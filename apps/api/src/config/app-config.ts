@@ -2,6 +2,7 @@ export interface AppConfig {
   readonly nodeEnv: 'development' | 'test' | 'production';
   readonly port: number;
   readonly listenHost: '127.0.0.1' | '0.0.0.0';
+  readonly appOrigin: string;
 }
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
@@ -10,7 +11,7 @@ type DatabaseConfigurationField =
   `${'DB' | 'TEST_DB'}_${'HOST' | 'PORT' | 'USER' | 'PASSWORD' | 'NAME'}`;
 
 export class ConfigurationError extends Error {
-  constructor(field: 'NODE_ENV' | 'PORT' | 'LISTEN_HOST' | DatabaseConfigurationField) {
+  constructor(field: 'NODE_ENV' | 'PORT' | 'LISTEN_HOST' | 'APP_ORIGIN' | DatabaseConfigurationField) {
     super(`Invalid configuration: ${field}`);
     this.name = 'ConfigurationError';
   }
@@ -33,9 +34,23 @@ export function loadConfiguration(env: NodeJS.ProcessEnv): AppConfig {
     throw new ConfigurationError('LISTEN_HOST');
   }
 
+  const appOrigin = env.APP_ORIGIN ?? '';
+  let parsedOrigin: URL;
+  try {
+    parsedOrigin = new URL(appOrigin);
+  } catch {
+    throw new ConfigurationError('APP_ORIGIN');
+  }
+  if (parsedOrigin.origin !== appOrigin ||
+    (parsedOrigin.protocol !== 'http:' && parsedOrigin.protocol !== 'https:') ||
+    (nodeEnv === 'production' && parsedOrigin.protocol !== 'https:')) {
+    throw new ConfigurationError('APP_ORIGIN');
+  }
+
   return {
     nodeEnv,
     port,
     listenHost,
+    appOrigin,
   };
 }

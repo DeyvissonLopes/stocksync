@@ -12,6 +12,13 @@
 | `#docs` | Documentation update |
 | `#test` | Test or verification change |
 
+## 0.2.0 — 2026-10-06
+
+- `#add` Connect the NestJS API to PostgreSQL through TypeORM with explicit migration configuration.
+- `#add` Keep development and test databases in separate Compose services; publish only the development database on a configurable localhost port.
+- `#test` Verify a real test database query, connection shutdown, and rejection of unsafe test targets.
+- `#change` Read database settings from `apps/api/.env`; configure the development PostgreSQL port for the API and local clients through `DB_PORT`.
+
 ## 0.1.0 — 2026-10-05
 
 - `#add` Set up a NestJS and TypeScript API in `apps/api`.

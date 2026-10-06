@@ -6,7 +6,7 @@ CHECK_VOLUMES := -v /app/apps/api/node_modules -v /app/apps/api/dist -v /app/app
 
 help:
 	@printf 'StockSync commands:\n'
-	@printf '  make setup  Create missing API .env, build and start; wait for HTTP readiness.\n'
+	@printf '  make setup  Create the API .env, build and start; wait for HTTP readiness.\n'
 	@printf '  make setup-local  Install project Node/npm and local IDE dependencies (requires nvm).\n'
 	@printf '  make build  Rebuild the API image.\n'
 	@printf '  make up     Start the API with Docker Compose.\n'
@@ -14,10 +14,13 @@ help:
 	@printf '  make check  Run types, lint, tests and build in a temporary container.\n'
 	@printf '  make down   Stop and remove the Compose services and network.\n'
 
-setup: apps/api/.env $(API_ARTIFACT_DIRS)
+setup: .env $(API_ARTIFACT_DIRS)
 	docker compose build api
 	docker compose run --rm api npm ci --include=dev
 	docker compose up --wait --wait-timeout 60 --detach
+
+.env: apps/api/.env
+	ln -s apps/api/.env .env
 
 apps/api/.env:
 	cp apps/api/.env.example apps/api/.env
@@ -40,17 +43,23 @@ setup-local:
 	npm ci --include=dev && \
 	npm run typecheck
 
-build:
+build: .env
 	docker compose build api
 
-up: $(API_ARTIFACT_DIRS)
+up: .env $(API_ARTIFACT_DIRS)
 	docker compose up
 
-test: $(API_ARTIFACT_DIRS)
-	docker compose run --build --rm $(CHECK_VOLUMES) api npm test
+test: .env $(API_ARTIFACT_DIRS)
+	@set -e; \
+	trap 'docker compose stop db-test' EXIT; \
+	docker compose up -d --wait db-test; \
+	docker compose run --no-deps --build --rm -e NODE_ENV=test $(CHECK_VOLUMES) api npm test
 
-check: $(API_ARTIFACT_DIRS)
-	docker compose run --build --rm $(CHECK_VOLUMES) api npm run check
+check: .env $(API_ARTIFACT_DIRS)
+	@set -e; \
+	trap 'docker compose stop db-test' EXIT; \
+	docker compose up -d --wait db-test; \
+	docker compose run --no-deps --build --rm -e NODE_ENV=test $(CHECK_VOLUMES) api npm run check
 
-down:
-	docker compose down
+down: .env
+	docker compose --profile test down

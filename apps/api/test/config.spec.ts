@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Test } from '@nestjs/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AppModule } from '../src/app.module.js';
+import { ConfigModule } from '../src/config/config.module.js';
 import { APP_CONFIG, loadConfiguration } from '../src/config/app-config.js';
 import type { AppConfig } from '../src/config/app-config.js';
 
@@ -14,7 +14,7 @@ describe('startup configuration', () => {
     vi.stubEnv('PORT', 'private-input-sentinel');
     vi.stubEnv('NODE_ENV', 'test');
 
-    const initialization = Test.createTestingModule({ imports: [AppModule] })
+    const initialization = Test.createTestingModule({ imports: [ConfigModule] })
       .compile()
       .then(async (module) => {
         await module.close();
@@ -51,7 +51,7 @@ describe('startup configuration', () => {
       vi.stubEnv('NODE_ENV', nodeEnv);
       vi.stubEnv('PORT', '3000');
       vi.stubEnv('LISTEN_HOST', '127.0.0.1');
-      const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+      const module = await Test.createTestingModule({ imports: [ConfigModule] }).compile();
       try {
         expect(module.get<AppConfig>(APP_CONFIG)).toEqual({
           nodeEnv,

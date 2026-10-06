@@ -1,4 +1,36 @@
 services:
+  db:
+    image: postgres:17.11-bookworm
+    command: ["postgres", "-p", "${DB_PORT:?Set DB_PORT in apps/api/.env}"]
+    environment:
+      POSTGRES_USER: ${DB_USER:?Set DB_USER in apps/api/.env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in apps/api/.env}
+      POSTGRES_DB: ${DB_NAME:?Set DB_NAME in apps/api/.env}
+    ports:
+      - "127.0.0.1:${DB_PORT:?Set DB_PORT in apps/api/.env}:${DB_PORT:?Set DB_PORT in apps/api/.env}"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:?} -d ${DB_NAME:?} -p ${DB_PORT:?}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  db-test:
+    image: postgres:17.11-bookworm
+    profiles: [test]
+    environment:
+      POSTGRES_USER: ${TEST_DB_USER:?Set TEST_DB_USER in apps/api/.env}
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:?Set TEST_DB_PASSWORD in apps/api/.env}
+      POSTGRES_DB: ${TEST_DB_NAME:?Set TEST_DB_NAME in apps/api/.env}
+    volumes:
+      - db_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USER:?} -d ${TEST_DB_NAME:?}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   api:
     build:
       context: ./apps/api
@@ -9,6 +41,10 @@ services:
     environment:
       PORT: "3000"
       LISTEN_HOST: 0.0.0.0
+      DB_PORT: ${DB_PORT:?Set DB_PORT in apps/api/.env}
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
@@ -32,3 +68,5 @@ volumes:
   api_node_modules:
   api_dist:
   api_test_build:
+  db_data:
+  db_test_data:

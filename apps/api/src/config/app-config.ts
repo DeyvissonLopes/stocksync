@@ -6,8 +6,11 @@ export interface AppConfig {
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
 
+type DatabaseConfigurationField =
+  `${'DB' | 'TEST_DB'}_${'HOST' | 'PORT' | 'USER' | 'PASSWORD' | 'NAME'}`;
+
 export class ConfigurationError extends Error {
-  constructor(field: 'NODE_ENV' | 'PORT' | 'LISTEN_HOST') {
+  constructor(field: 'NODE_ENV' | 'PORT' | 'LISTEN_HOST' | DatabaseConfigurationField) {
     super(`Invalid configuration: ${field}`);
     this.name = 'ConfigurationError';
   }

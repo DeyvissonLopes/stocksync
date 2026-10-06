@@ -3,6 +3,7 @@ export interface AppConfig {
   readonly port: number;
   readonly listenHost: '127.0.0.1' | '0.0.0.0';
   readonly appOrigin: string;
+  readonly jwtSecret: string;
 }
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
@@ -11,7 +12,7 @@ type DatabaseConfigurationField =
   `${'DB' | 'TEST_DB'}_${'HOST' | 'PORT' | 'USER' | 'PASSWORD' | 'NAME'}`;
 
 export class ConfigurationError extends Error {
-  constructor(field: 'NODE_ENV' | 'PORT' | 'LISTEN_HOST' | 'APP_ORIGIN' | DatabaseConfigurationField) {
+  constructor(field: 'NODE_ENV' | 'PORT' | 'LISTEN_HOST' | 'APP_ORIGIN' | 'JWT_SECRET' | DatabaseConfigurationField) {
     super(`Invalid configuration: ${field}`);
     this.name = 'ConfigurationError';
   }
@@ -47,10 +48,18 @@ export function loadConfiguration(env: NodeJS.ProcessEnv): AppConfig {
     throw new ConfigurationError('APP_ORIGIN');
   }
 
+  const jwtSecret = env.JWT_SECRET ?? '';
+  if (Buffer.byteLength(jwtSecret, 'utf8') < 32 || jwtSecret.trim() === '' ||
+    (nodeEnv === 'production' &&
+      jwtSecret === 'local-only-change-this-secret-32-bytes-minimum')) {
+    throw new ConfigurationError('JWT_SECRET');
+  }
+
   return {
     nodeEnv,
     port,
     listenHost,
     appOrigin,
+    jwtSecret,
   };
 }

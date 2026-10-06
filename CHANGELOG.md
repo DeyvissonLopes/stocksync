@@ -14,6 +14,12 @@
 
 ## Unreleased
 
+- `#add` Verify persisted user credentials with TypeORM and Argon2id, rejecting inactive accounts.
+- `#security` Apply a global guard to browser writes that requires the configured origin, a custom request header and JSON bodies.
+- `#test` Simulate cross-origin and form-based CSRF attempts and verify rejected requests never reach the write handler.
+- `#add` Issue and verify one-hour JWT identity tokens with the configured secret, issuer, audience and restricted claims.
+- `#security` Reject invalid, expired, tampered or wrongly scoped tokens and fail startup on a missing or short JWT secret.
+- `#test` Cover JWT failure cases and Nest module configuration.
 - `#add` Create tenant and user tables with a mandatory tenant link, role constraints and globally unique email.
 - `#add` Apply migrations and seed two demo tenants with admin and operator users during setup.
 - `#change` Use the TypeORM timestamp naming convention for the identity migration and one ordered, transactional runner for registered seeders.

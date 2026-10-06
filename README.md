@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, credential verification, and browser write protection. Business endpoints and the web interface are planned.
+Current scope: API bootstrap, PostgreSQL persistence, credential verification, JWT utilities, and browser write protection. Login routes, business endpoints, and the web interface are planned.
 
 ## Technologies
 
@@ -37,6 +37,8 @@ make down
 Edit `apps/api/.env` to configure the development and test databases. Setup creates it from `apps/api/.env.example` if it does not exist. PostgreSQL uses `127.0.0.1:5432` by default. If that port is occupied, set `DB_PORT` to a free port before running setup.
 
 `APP_ORIGIN` is the exact browser origin allowed to make write requests. The example uses the planned local Vite origin; set it to the actual frontend origin when that server is introduced. Production requires an HTTPS origin. Browser writes require `X-StockSync-Request: 1` and JSON bodies when a body is sent.
+
+`JWT_SECRET` signs identity tokens. The example value is only for local development and is rejected in production; use a random secret of at least 32 bytes for deployment. JWT issuance and verification are available internally, but no login endpoint issues a cookie yet.
 
 ## Demo tenants and users
 

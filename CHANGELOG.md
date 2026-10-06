@@ -12,6 +12,14 @@
 | `#docs` | Documentation update |
 | `#test` | Test or verification change |
 
+## Unreleased
+
+- `#add` Create tenant and user tables with a mandatory tenant link, role constraints and globally unique email.
+- `#add` Apply migrations and seed two demo tenants with admin and operator users during setup.
+- `#change` Use the TypeORM timestamp naming convention for the identity migration and one ordered, transactional runner for registered seeders.
+- `#security` Store demo passwords as verifiable Argon2id hashes.
+- `#test` Verify schema constraints and repeatable seed behavior against PostgreSQL.
+
 ## 0.2.0 — 2026-10-06
 
 - `#add` Connect the NestJS API to PostgreSQL through TypeORM with explicit migration configuration.

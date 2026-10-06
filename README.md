@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, configuration, and PostgreSQL connection. Business endpoints and the web interface are planned.
+Current scope: API bootstrap and PostgreSQL persistence. Business endpoints and the web interface are planned.
 
 ## Technologies
 
@@ -18,20 +18,34 @@ Current scope: API bootstrap, configuration, and PostgreSQL connection. Business
 
 ## Run the API
 
-With Docker Engine, Docker Compose v2.24+ and Make installed, run from the project root. If port 5432 is already in use, first copy `apps/api/.env.example` to `apps/api/.env` and set `DB_PORT` to a free port:
+With Docker Engine, Docker Compose v2.24+ and Make installed, run from the project root:
 
 ```sh
 make setup
 ```
 
-API: http://127.0.0.1:3000. PostgreSQL is published on `127.0.0.1:5432` by default. Local Node.js/npm are optional.
-Edit `apps/api/.env` to configure both databases. `make setup` creates it from `apps/api/.env.example` when missing. `DB_PORT` sets both the PostgreSQL listening port and its published port; the API connects to `db` on that same port.
+API: http://127.0.0.1:3000. Local Node.js/npm are optional.
 
 To stop:
 
 ```sh
 make down
 ```
+
+## Database configuration
+
+Edit `apps/api/.env` to configure the development and test databases. Setup creates it from `apps/api/.env.example` if it does not exist. PostgreSQL uses `127.0.0.1:5432` by default. If that port is occupied, set `DB_PORT` to a free port before running setup.
+
+## Demo tenants and users
+
+Setup applies the identity migration and seeds two tenants, each with an admin and an operator:
+
+| Tenant | Admin | Operator |
+| --- | --- | --- |
+| `alpha` | `admin@alpha.stocksync.test` | `operator@alpha.stocksync.test` |
+| `beta` | `admin@beta.stocksync.test` | `operator@beta.stocksync.test` |
+
+All four accounts use the demo password `StockSyncDemo123!`, stored as an Argon2id hash.
 
 ## Run checks
 

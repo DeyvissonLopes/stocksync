@@ -38,13 +38,13 @@ export function loadDatabaseOptions(env: NodeJS.ProcessEnv): DataSourceOptions {
     throw new ConfigurationError('NODE_ENV');
   }
 
-  const demo = target(env, 'DB');
-  let selected = demo;
+  const application = target(env, 'DB');
+  let selected = application;
   if (nodeEnv === 'test') {
     selected = target(env, 'TEST_DB');
     const sameTarget = selected.host.toLowerCase().replace(/\.$/, '') ===
-      demo.host.toLowerCase().replace(/\.$/, '') &&
-      selected.port === demo.port && selected.database === demo.database;
+      application.host.toLowerCase().replace(/\.$/, '') &&
+      selected.port === application.port && selected.database === application.database;
     if (!selected.database.endsWith('_test') || sameTarget) {
       throw new ConfigurationError('TEST_DB_NAME');
     }

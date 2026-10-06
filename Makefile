@@ -6,7 +6,7 @@ CHECK_VOLUMES := -v /app/apps/api/node_modules -v /app/apps/api/dist -v /app/app
 
 help:
 	@printf 'StockSync commands:\n'
-	@printf '  make setup  Create the API .env, build and start; wait for HTTP readiness.\n'
+	@printf '  make setup  Create the API .env, build, migrate, seed and start.\n'
 	@printf '  make setup-local  Install project Node/npm and local IDE dependencies (requires nvm).\n'
 	@printf '  make build  Rebuild the API image.\n'
 	@printf '  make up     Start the API with Docker Compose.\n'
@@ -17,6 +17,8 @@ help:
 setup: .env $(API_ARTIFACT_DIRS)
 	docker compose build api
 	docker compose run --rm api npm ci --include=dev
+	docker compose run --rm api npm run migration:run
+	docker compose run --rm api npm run seed:run
 	docker compose up --wait --wait-timeout 60 --detach
 
 .env: apps/api/.env

@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Read a tenant product's paginated stock movement history, including archived products.
+- `#security` Scope movement history and its count to the session tenant; reject tenant-selecting query parameters.
+- `#test` Verify movement pagination, ordering, archived history, permissions and isolation over HTTP and PostgreSQL.
 - `#add` Archive tenant products through an admin-only, version-checked `DELETE /products/:id`.
 - `#change` Preserve internal stock and movement history while publishing a new pending outbox snapshot with stock zero; repeated archives return 204 without another event.
 - `#test` Verify archive isolation, version conflicts, idempotence, concurrent requests, authorization, and input validation over HTTP and PostgreSQL.

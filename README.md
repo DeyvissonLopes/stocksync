@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading, creation, editing and archiving. Sales, external sync, and the web interface are planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. Sales, external sync, and the web interface are planned.
 
 ## Technologies
 
@@ -67,7 +67,9 @@ Setup also seeds three products per tenant. Alpha has Blue Mug, A5 Notebook and 
 
 `PATCH /products/:id` requires an admin session and the same browser write headers. Send `expectedVersion` as a positive decimal string plus at least one of `name`, `price`, or `stock`. For example, `{ "expectedVersion": "1", "stock": 7, "reason": "Cycle count" }`. A stock field requires a trimmed reason of 1–500 characters; reason without stock is rejected. SKU and tenant cannot be edited. The route returns `200` with the product, `404` for missing, foreign, or archived products, and `409` with `PRODUCT_VERSION_CONFLICT` for a stale version. Real changes increment the version; identical values leave it unchanged. Stock changes record before/after balances and the reason. Price or stock changes add a pending outbox snapshot; name-only changes do not.
 
-`DELETE /products/:id?expectedVersion=1` requires an admin session and the same browser write headers. For an active product, the query must contain only a positive decimal `expectedVersion`. A successful archive returns `204`, records the admin, increments the version and adds a pending outbox snapshot with stock `0`. It preserves internal stock and movements; archived products disappear from GET endpoints. A stale version on an active product returns `409` with `PRODUCT_VERSION_CONFLICT`; a foreign or missing product returns `404`. Repeating the archive within the same tenant returns `204` without another version or event.
+`DELETE /products/:id?expectedVersion=1` requires an admin session and the same browser write headers. For an active product, send its current `version` as the only query parameter; `1` is just the example for a newly created product. A successful archive returns `204`, records the admin, increments the version and adds a pending outbox snapshot with stock `0`. It preserves internal stock and movements; archived products disappear from catalog GET endpoints. A stale version on an active product returns `409` with `PRODUCT_VERSION_CONFLICT`; a foreign or missing product returns `404`. Repeating the archive within the same tenant returns `204` without another version or event.
+
+`GET /products/:id/stock-movements` requires an admin or operator session. It returns movements for a product in the session tenant, including archived products, in pages of 10 ordered by creation time and ID descending. Use `?page=2` for the next page; only a positive `page` is accepted. The response has `movements` with `id`, `userId`, `reason`, `note`, `quantityDelta`, `stockBefore`, `stockAfter`, and `createdAt`, plus `pagination: { page, pageSize, total, totalPages }`. Missing or other-tenant products return `404`.
 
 ## Run checks
 

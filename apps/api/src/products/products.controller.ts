@@ -92,12 +92,7 @@ function productResponse(product: ProductEntity) {
   };
 }
 
-function parseListFilters(query: Record<string, unknown>): ProductListFilters {
-  if (Object.keys(query).some((key) => !['page', 'name', 'zeroStock'].includes(key))) {
-    throw new BadRequestException('Invalid product query');
-  }
-
-  const rawPage = query.page;
+function parsePage(rawPage: unknown): number {
   let page = 1;
   if (rawPage !== undefined) {
     if (typeof rawPage !== 'string' || !/^[1-9]\d*$/.test(rawPage)) {
@@ -109,6 +104,15 @@ function parseListFilters(query: Record<string, unknown>): ProductListFilters {
       throw new BadRequestException('Invalid product query');
     }
   }
+  return page;
+}
+
+function parseListFilters(query: Record<string, unknown>): ProductListFilters {
+  if (Object.keys(query).some((key) => !['page', 'name', 'zeroStock'].includes(key))) {
+    throw new BadRequestException('Invalid product query');
+  }
+
+  const page = parsePage(query.page);
 
   const rawName = query.name;
   if (rawName !== undefined && (typeof rawName !== 'string' ||
@@ -123,6 +127,13 @@ function parseListFilters(query: Record<string, unknown>): ProductListFilters {
 
   const name = typeof rawName === 'string' ? rawName.trim() : '';
   return { page, ...(name ? { name } : {}), zeroStock: rawZeroStock === 'true' };
+}
+
+function parseMovementPage(query: Record<string, unknown>): number {
+  if (Object.keys(query).some((key) => key !== 'page')) {
+    throw new BadRequestException('Invalid product query');
+  }
+  return parsePage(query.page);
 }
 
 @Controller('products')
@@ -190,5 +201,19 @@ export class ProductsController {
     const product = await this.reader.findActive(request.identity.tenantId, id);
     if (!product) throw new NotFoundException();
     return { product: productResponse(product) };
+  }
+
+  @Get(':id/stock-movements')
+  async movements(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Query() query: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    const page = parseMovementPage(query);
+    const result = await this.reader.listMovements(request.identity.tenantId, id, page);
+    if (!result) throw new NotFoundException();
+    const [movements, total] = result;
+    return { movements, pagination: { page, pageSize: PRODUCT_PAGE_SIZE, total,
+      totalPages: Math.ceil(total / PRODUCT_PAGE_SIZE) } };
   }
 }

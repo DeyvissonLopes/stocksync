@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Create tenant products through an admin-only `POST /products` with an initial stock movement and pending outbox snapshot in one transaction.
+- `#security` Validate creation input and bind the new product to the authenticated tenant and actor; reject duplicate tenant SKUs.
+- `#test` Verify product creation, zero stock, duplicate SKUs, permissions and validation over HTTP and PostgreSQL.
 - `#add` Persist tenant-bound stock movements and versioned outbox snapshots for future product writes.
 - `#change` Add repeatable opening-balance movements and pending sync snapshots for existing demo products.
 - `#test` Verify movement/outbox constraints and seed backfill over PostgreSQL.

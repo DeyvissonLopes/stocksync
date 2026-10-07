@@ -97,6 +97,18 @@ describe('product movement and outbox schema', () => {
       await rejected(() => movement(tenantA, productA, actorB));
       await rejected(() => movement(tenantA, productA, actorA, 3, 2));
       await rejected(() => movement(tenantA, productA, actorA, 0, 0));
+      await rejected(() => runner.query(
+        `INSERT INTO stock_movements
+          (tenant_id, product_id, user_id, reason, quantity_delta, stock_before, stock_after)
+         VALUES ($1, $2, $3, 'initial_stock', -1, 0, -1)`,
+        [tenantA, productA, actorA],
+      ));
+      await rejected(() => runner.query(
+        `INSERT INTO stock_movements
+          (tenant_id, product_id, user_id, reason, quantity_delta, stock_before, stock_after)
+         VALUES ($1, $2, $3, 'initial_stock', 1, -1, 0)`,
+        [tenantA, productA, actorA],
+      ));
       await rejected(() => event(tenantA, productB));
       await rejected(() => event(tenantA, productA));
       await rejected(() => event(tenantA, productA, -1, '2'));

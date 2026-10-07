@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#test` Explicitly verify that PostgreSQL rejects negative product stock on update and negative movement balances.
+
 ## 0.4.0 — 2026-10-07
 
 Product catalog and stock audit API are available.

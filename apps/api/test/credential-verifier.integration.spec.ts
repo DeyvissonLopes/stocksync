@@ -2,9 +2,10 @@ import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import argon2 from 'argon2';
 import { DataSource, type QueryRunner } from 'typeorm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { CredentialVerifier } from '../src/auth/credential-verifier.js';
 import { loadDatabaseOptions } from '../src/database/database-options.js';
+import { UserEntity } from '../src/database/entities/user.entity.js';
 
 let dataSource: DataSource;
 let runner: QueryRunner;
@@ -38,7 +39,7 @@ beforeAll(async () => {
      VALUES ($1, $2, 'admin', $3, false)`,
     [tenantId, inactiveEmail, hash],
   );
-  verifier = new CredentialVerifier(runner.manager);
+  verifier = new CredentialVerifier(runner.manager.getRepository(UserEntity));
 });
 
 afterAll(async () => {
@@ -61,5 +62,17 @@ describe('credential verification', () => {
     expect(await verifier.verify('missing@auth.stocksync.test', password)).toBeNull();
     expect(await verifier.verify(email.toLowerCase(), password)).toBeNull();
     expect(await verifier.verify(inactiveEmail, password)).toBeNull();
+  });
+
+  it('performs Argon2id verification for unknown and inactive accounts too', async () => {
+    const verify = vi.spyOn(argon2, 'verify');
+    try {
+      expect(await verifier.verify('another-missing@auth.stocksync.test', password)).toBeNull();
+      expect(verify).toHaveBeenCalledTimes(1);
+      expect(await verifier.verify(inactiveEmail, password)).toBeNull();
+      expect(verify).toHaveBeenCalledTimes(2);
+    } finally {
+      verify.mockRestore();
+    }
   });
 });

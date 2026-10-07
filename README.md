@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, credential verification, JWT utilities, and browser write protection. Login routes, business endpoints, and the web interface are planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, and token login with an HttpOnly cookie. Session inspection, logout, business endpoints, and the web interface are planned.
 
 ## Technologies
 
@@ -38,7 +38,7 @@ Edit `apps/api/.env` to configure the development and test databases. Setup crea
 
 `APP_ORIGIN` is the exact browser origin allowed to make write requests. The example uses the planned local Vite origin; set it to the actual frontend origin when that server is introduced. Production requires an HTTPS origin. Browser writes require `X-StockSync-Request: 1` and JSON bodies when a body is sent.
 
-`JWT_SECRET` signs identity tokens. The example value is only for local development and is rejected in production; use a random secret of at least 32 bytes for deployment. JWT issuance and verification are available internally, but no login endpoint issues a cookie yet.
+`JWT_SECRET` signs identity tokens. The example value is only for local development and is rejected in production; use a random secret of at least 32 bytes for deployment. The login endpoint issues the token in an HttpOnly cookie.
 
 ## Demo tenants and users
 
@@ -50,6 +50,8 @@ Setup applies the identity migration and seeds two tenants, each with an admin a
 | `beta` | `admin@beta.stocksync.test` | `operator@beta.stocksync.test` |
 
 All four accounts use the demo password `StockSyncDemo123!`, stored as an Argon2id hash.
+
+`POST /auth/login` accepts JSON `email` and `password` with literal email matching. It requires `Origin: http://localhost:5173` and `X-StockSync-Request: 1` with the example configuration. Successful login returns the current identity and sets `stocksync_token`. The login route allows five requests per literal email and thirty requests per IP in fifteen minutes, counting successful and failed logins. Excess requests return `429` with `Retry-After`; the email pause is a fixed 30 seconds. The limiter is local to one API process. A browser frontend will use a same-origin `/api` proxy so `SameSite=Lax` can send the cookie.
 
 ## Run checks
 

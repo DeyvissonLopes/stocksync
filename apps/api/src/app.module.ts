@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from './auth/auth.module.js';
 import { AuthTokenModule } from './auth/auth-token.module.js';
 import { APP_CONFIG } from './config/app-config.js';
 import type { AppConfig } from './config/app-config.js';
@@ -11,6 +12,7 @@ import { BrowserSecurityModule } from './security/browser-security.module.js';
 @Module({
   imports: [
     ConfigModule,
+    AuthModule,
     AuthTokenModule,
     BrowserSecurityModule,
     TypeOrmModule.forRootAsync({

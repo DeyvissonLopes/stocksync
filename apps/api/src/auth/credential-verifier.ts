@@ -1,6 +1,11 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import argon2 from 'argon2';
-import type { EntityManager } from 'typeorm';
+import type { Repository } from 'typeorm';
 import { UserEntity, type UserRole } from '../database/entities/user.entity.js';
+
+// Public dummy hash with the same Argon2id parameters as real accounts.
+const dummyPasswordHash = '$argon2id$v=19$m=65536,p=4,t=3$c3RvY2tzeW5jLWR1bW15LXNhbHQ$fR3w1DtRo3kVStSUxwSR4lYijUHO03DvB9hK3+QgnCo';
 
 export type AuthenticatedIdentity = {
   userId: string;
@@ -8,15 +13,18 @@ export type AuthenticatedIdentity = {
   role: UserRole;
 };
 
+@Injectable()
 export class CredentialVerifier {
-  constructor(private readonly manager: EntityManager) {}
+  constructor(@InjectRepository(UserEntity) private readonly users: Repository<UserEntity>) {}
 
   async verify(email: string, password: string): Promise<AuthenticatedIdentity | null> {
-    const user = await this.manager.getRepository(UserEntity).findOne({
+    const user = await this.users.findOne({
       where: { email },
       select: { id: true, tenantId: true, role: true, passwordHash: true, isActive: true },
     });
-    if (!user?.isActive || !(await argon2.verify(user.passwordHash, password))) {
+    const hash = user?.isActive ? user.passwordHash : dummyPasswordHash;
+    const passwordMatches = await argon2.verify(hash, password);
+    if (!user?.isActive || !passwordMatches) {
       return null;
     }
 

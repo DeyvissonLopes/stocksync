@@ -14,6 +14,10 @@
 
 ## Unreleased
 
+- `#add` Provide `POST /auth/login` with a one-hour HttpOnly cookie and current user identity.
+- `#security` Limit login requests by literal email and IP before password verification using `@nestjs/throttler`; return 429 with Retry-After and a fixed 30-second email pause.
+- `#security` Run Argon2id verification for unknown and inactive accounts to reduce timing differences.
+- `#test` Exercise login, cookie attributes, CSRF, rate limits and proxy-header spoofing over HTTP and PostgreSQL.
 - `#add` Verify persisted user credentials with TypeORM and Argon2id, rejecting inactive accounts.
 - `#security` Apply a global guard to browser writes that requires the configured origin, a custom request header and JSON bodies.
 - `#test` Simulate cross-origin and form-based CSRF attempts and verify rejected requests never reach the write handler.

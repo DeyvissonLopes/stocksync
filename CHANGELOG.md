@@ -14,6 +14,10 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-10-07
+
+Identity and browser authentication are available.
+
 - `#add` Provide `POST /auth/logout` to expire the browser session cookie with a 204 response.
 - `#security` Apply browser write protection to logout and avoid claiming to revoke already issued JWTs.
 - `#test` Cover logout, missing or invalid cookies, CSRF rejection and production cookie attributes.
@@ -38,12 +42,16 @@
 
 ## 0.2.0 — 2026-10-06
 
+Database implementation completed.
+
 - `#add` Connect the NestJS API to PostgreSQL through TypeORM with explicit migration configuration.
 - `#add` Keep development and test databases in separate Compose services; publish only the development database on a configurable localhost port.
 - `#test` Verify a real test database query, connection shutdown, and rejection of unsafe test targets.
 - `#change` Read database settings from `apps/api/.env`; configure the development PostgreSQL port for the API and local clients through `DB_PORT`.
 
 ## 0.1.0 — 2026-10-05
+
+Infrastructure setup.
 
 - `#add` Set up a NestJS and TypeScript API in `apps/api`.
 - `#add` Validate `NODE_ENV`, `PORT`, and `LISTEN_HOST` at startup without exposing invalid values.

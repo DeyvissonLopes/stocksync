@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Persist tenant-bound stock movements and versioned outbox snapshots for future product writes.
+- `#change` Add repeatable opening-balance movements and pending sync snapshots for existing demo products.
+- `#test` Verify movement/outbox constraints and seed backfill over PostgreSQL.
 - `#add` Seed six demo products across the alpha and beta tenants, including shared SKUs and zero-stock examples.
 - `#test` Verify product seed idempotence and preservation of edited or archived products.
 - `#add` List active tenant products in fixed pages of 10 with name and zero-stock filters.

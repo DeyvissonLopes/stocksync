@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException,
-  Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, HttpCode,
+  NotFoundException, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { SessionGuard } from '../auth/session.guard.js';
 import type { AuthenticatedRequest } from '../auth/session.guard.js';
 import type { ProductEntity } from '../database/entities/product.entity.js';
@@ -43,6 +43,15 @@ function parseProductChanges(body: unknown): ProductChanges {
     ...(typeof data.stock === 'number' ? { stock: data.stock } : {}),
     ...(typeof data.reason === 'string' ? { reason: data.reason.trim() } : {}),
   };
+}
+
+function parseArchiveVersion(query: Record<string, unknown>): string {
+  const version = query.expectedVersion;
+  if (Object.keys(query).length !== 1 || typeof version !== 'string' ||
+    !/^[1-9]\d{0,18}$/.test(version) || BigInt(version) > 9223372036854775807n) {
+    throw new BadRequestException('Invalid product query');
+  }
+  return version;
 }
 
 function parseNewProduct(body: unknown): NewProduct {
@@ -144,6 +153,19 @@ export class ProductsController {
     const product = await this.writer.update(request.identity.tenantId,
       request.identity.userId, id, changes);
     return { product: productResponse(product) };
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async archive(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Query() query: Record<string, unknown>,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<void> {
+    if (request.identity.role !== 'admin') throw new ForbiddenException();
+    const expectedVersion = parseArchiveVersion(query);
+    await this.writer.archive(request.identity.tenantId, request.identity.userId,
+      id, expectedVersion);
   }
 
   @Get()

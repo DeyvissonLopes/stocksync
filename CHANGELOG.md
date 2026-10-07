@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Archive tenant products through an admin-only, version-checked `DELETE /products/:id`.
+- `#change` Preserve internal stock and movement history while publishing a new pending outbox snapshot with stock zero; repeated archives return 204 without another event.
+- `#test` Verify archive isolation, version conflicts, idempotence, concurrent requests, authorization, and input validation over HTTP and PostgreSQL.
 - `#add` Edit active tenant products through an admin-only `PATCH /products/:id` with an expected version and transactional stock audit.
 - `#change` Store the supplied reason for manual stock adjustments and publish new outbox snapshots only when price or stock changes.
 - `#test` Verify stale and concurrent updates, no-op and name-only edits, tenant isolation, permissions, and input validation over HTTP and PostgreSQL.

@@ -21,6 +21,35 @@ export type ProductChanges = {
 export class ProductWriter {
   constructor(private readonly dataSource: DataSource) {}
 
+  archive(tenantId: string, userId: string, id: string,
+    expectedVersion: string): Promise<void> {
+    return this.dataSource.transaction(async (manager) => {
+      const products = manager.getRepository(ProductEntity);
+      const product = await products.findOne({
+        where: { tenantId, id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!product) throw new NotFoundException();
+      if (product.deletedAt !== null) return;
+      if (product.version !== expectedVersion) {
+        throw new ConflictException({
+          code: 'PRODUCT_VERSION_CONFLICT', message: 'Product version conflict',
+        });
+      }
+
+      product.deletedAt = new Date();
+      product.deletedBy = userId;
+      product.version = String(BigInt(product.version) + 1n);
+      const updated = await products.save(product);
+      await manager.query(
+        `INSERT INTO outbox_events
+          (tenant_id, product_id, product_version, sku, stock, price_cents)
+         VALUES ($1, $2, $3, $4, 0, $5)`,
+        [tenantId, id, updated.version, updated.sku, updated.priceCents],
+      );
+    });
+  }
+
   update(tenantId: string, userId: string, id: string,
     changes: ProductChanges): Promise<ProductEntity> {
     return this.dataSource.transaction(async (manager) => {

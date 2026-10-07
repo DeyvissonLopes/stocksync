@@ -18,6 +18,7 @@
     "start": "node --env-file-if-exists=.env dist/main.js",
     "migration:run": "npm run build && typeorm migration:run -d dist/database/data-source.js",
     "sync:queue:migrate": "npm run build && node --env-file-if-exists=.env dist/sync/migrate-queue.js",
+    "sync:dispatch": "node --env-file-if-exists=.env dist/sync/run-dispatcher.js",
     "seed:run": "npm run build && node --env-file-if-exists=.env dist/database/seed.js",
     "check": "npm run typecheck && npm run lint && npm test && npm run build"
   },

@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Run the sync dispatcher in an optional separate Compose process with sequential polling and graceful shutdown.
+- `#test` Verify no overlapping rounds, retry after a failed round and shutdown during active work.
 - `#add` Run one sync dispatcher round that reconciles existing batches before forming and publishing the next.
 - `#test` Verify recovery before new batching and retry of a persisted batch after queue publication fails.
 - `#add` Reconcile persisted batches with missing or retained BullMQ jobs without creating new batches.

@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. A single dispatcher round can reconcile existing batches, then form and publish the next batch through BullMQ in PostgreSQL. No scheduled process, worker or external delivery runs yet. The web interface is planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. An optional dispatcher process reconciles existing sync batches, then forms and publishes new batches through BullMQ in PostgreSQL. No sync worker or external delivery runs yet. The web interface is planned.
 
 ## Technologies
 
@@ -26,6 +26,10 @@ make setup
 ```
 
 API: http://127.0.0.1:3000. Local Node.js/npm are optional.
+
+After setup, run `make sync-dispatcher` to start the optional sync dispatcher
+as a separate container. It publishes jobs but no worker processes them yet.
+`make down` stops it along with the other services.
 
 Setup applies the application migrations and the separate BullMQ schema migration.
 For an existing database, run `docker compose run --rm api npm run sync:queue:migrate`

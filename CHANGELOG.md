@@ -14,6 +14,10 @@
 
 ## Unreleased
 
+## 0.4.0 — 2026-10-07
+
+Product catalog and stock audit API are available.
+
 - `#add` Read a tenant product's paginated stock movement history, including archived products.
 - `#security` Scope movement history and its count to the session tenant; reject tenant-selecting query parameters.
 - `#test` Verify movement pagination, ordering, archived history, permissions and isolation over HTTP and PostgreSQL.

@@ -1,8 +1,10 @@
-import { BadRequestException, Body, Controller, HttpCode, Inject, Post, Res,
+import { BadRequestException, Body, Controller, Get, HttpCode, Inject, Post, Req, Res,
   UnauthorizedException, UseGuards } from '@nestjs/common';
 import { AuthTokenService } from './auth-token.service.js';
 import { CredentialVerifier } from './credential-verifier.js';
 import { LoginThrottlerGuard } from './login-throttler.guard.js';
+import { SessionGuard } from './session.guard.js';
+import type { AuthenticatedRequest } from './session.guard.js';
 import { sessionCookie } from './session-cookie.js';
 import { APP_CONFIG } from '../config/app-config.js';
 import type { AppConfig } from '../config/app-config.js';
@@ -42,5 +44,11 @@ export class AuthController {
     const token = this.tokens.issue(identity.userId);
     response.setHeader('Set-Cookie', sessionCookie(token, this.config.nodeEnv));
     return { user: identity };
+  }
+
+  @Get('me')
+  @UseGuards(SessionGuard)
+  me(@Req() request: AuthenticatedRequest) {
+    return { user: request.identity };
   }
 }

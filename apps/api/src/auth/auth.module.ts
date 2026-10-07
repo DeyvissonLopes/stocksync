@@ -5,6 +5,7 @@ import { AuthTokenModule } from './auth-token.module.js';
 import { AuthController } from './auth.controller.js';
 import { CredentialVerifier } from './credential-verifier.js';
 import { LoginThrottlerGuard } from './login-throttler.guard.js';
+import { SessionGuard } from './session.guard.js';
 import { ConfigModule } from '../config/config.module.js';
 import { UserEntity } from '../database/entities/user.entity.js';
 
@@ -31,6 +32,6 @@ import { UserEntity } from '../database/entities/user.entity.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [CredentialVerifier, LoginThrottlerGuard],
+  providers: [CredentialVerifier, LoginThrottlerGuard, SessionGuard],
 })
 export class AuthModule {}

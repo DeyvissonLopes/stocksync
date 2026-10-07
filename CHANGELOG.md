@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Restore the current user identity through `GET /auth/me` using the HttpOnly session cookie.
+- `#security` Reject missing, invalid, expired, duplicate, inactive and unknown-user sessions; read current tenant and role from PostgreSQL.
+- `#test` Verify session restoration and rejection over HTTP with PostgreSQL.
 - `#add` Provide `POST /auth/login` with a one-hour HttpOnly cookie and current user identity.
 - `#security` Limit login requests by literal email and IP before password verification using `@nestjs/throttler`; return 429 with Retry-After and a fixed 30-second email pause.
 - `#security` Run Argon2id verification for unknown and inactive accounts to reduce timing differences.

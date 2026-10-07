@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { loadDatabaseOptions } from '../src/database/database-options.js';
 
-const demoEnv = {
+const appEnv = {
   DB_HOST: 'db',
   DB_PORT: '5432',
-  DB_USER: 'demo',
+  DB_USER: 'app-user',
   DB_PASSWORD: 'password',
   DB_NAME: 'stocksync',
 };
@@ -20,12 +20,12 @@ const testEnv = {
 describe('database configuration', () => {
   it('accepts separate environment fields, including a password with URL characters', () => {
     expect(loadDatabaseOptions({
-      NODE_ENV: 'development', ...demoEnv, DB_PASSWORD: 'p@ss/#word',
+      NODE_ENV: 'development', ...appEnv, DB_PASSWORD: 'p@ss/#word',
     })).toMatchObject({
       type: 'postgres',
       host: 'db',
       port: 5432,
-      username: 'demo',
+      username: 'app-user',
       password: 'p@ss/#word',
       database: 'stocksync',
     });
@@ -37,13 +37,13 @@ describe('database configuration', () => {
   });
 
   it('requires a separately named test database before running tests', () => {
-    expect(() => loadDatabaseOptions({ NODE_ENV: 'test', ...demoEnv }))
+    expect(() => loadDatabaseOptions({ NODE_ENV: 'test', ...appEnv }))
       .toThrow(/^Invalid configuration: TEST_DB_HOST$/);
     expect(() => loadDatabaseOptions({
-      NODE_ENV: 'test', ...demoEnv, ...testEnv, TEST_DB_NAME: 'stocksync',
+      NODE_ENV: 'test', ...appEnv, ...testEnv, TEST_DB_NAME: 'stocksync',
     })).toThrow(/^Invalid configuration: TEST_DB_NAME$/);
     expect(() => loadDatabaseOptions({
-      NODE_ENV: 'test', ...demoEnv, ...testEnv,
+      NODE_ENV: 'test', ...appEnv, ...testEnv,
       TEST_DB_HOST: 'DB.',
       DB_NAME: 'stocksync_test',
     })).toThrow(/^Invalid configuration: TEST_DB_NAME$/);
@@ -51,17 +51,17 @@ describe('database configuration', () => {
 
   it('rejects malformed targets without exposing the supplied values', () => {
     expect(() => loadDatabaseOptions({
-      NODE_ENV: 'development', ...demoEnv, DB_PORT: 'private-input-sentinel',
+      NODE_ENV: 'development', ...appEnv, DB_PORT: 'private-input-sentinel',
     })).toThrow(/^Invalid configuration: DB_PORT$/);
     expect(() => loadDatabaseOptions({
-      NODE_ENV: 'test', ...demoEnv, ...testEnv,
+      NODE_ENV: 'test', ...appEnv, ...testEnv,
       TEST_DB_NAME: 'private-input-sentinel%',
     })).toThrow(/^Invalid configuration: TEST_DB_NAME$/);
   });
 
   it('selects the test target and never synchronizes or runs migrations on connection', () => {
     expect(loadDatabaseOptions({
-      NODE_ENV: 'test', ...demoEnv, ...testEnv,
+      NODE_ENV: 'test', ...appEnv, ...testEnv,
     })).toMatchObject({
       type: 'postgres',
       host: 'db-test',
@@ -74,7 +74,7 @@ describe('database configuration', () => {
   });
 
   it('selects the application target outside tests', () => {
-    expect(loadDatabaseOptions({ NODE_ENV: 'production', ...demoEnv, ...testEnv }))
+    expect(loadDatabaseOptions({ NODE_ENV: 'production', ...appEnv, ...testEnv }))
       .toMatchObject({ host: 'db', database: 'stocksync', synchronize: false, migrationsRun: false });
   });
 });

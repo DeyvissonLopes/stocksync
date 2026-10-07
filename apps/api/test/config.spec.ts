@@ -7,6 +7,8 @@ import { ConfigModule } from '../src/config/config.module.js';
 import { APP_CONFIG, loadConfiguration } from '../src/config/app-config.js';
 import type { AppConfig } from '../src/config/app-config.js';
 
+const testJwtSecret = 'jwt-test-secret-with-at-least-thirty-two-bytes';
+
 afterEach(() => vi.unstubAllEnvs());
 
 describe('startup configuration', () => {
@@ -40,8 +42,38 @@ describe('startup configuration', () => {
       .toThrow(/^Invalid configuration: LISTEN_HOST$/);
   });
 
+  it.each([undefined, '', 'null', '*', 'https://app.example.test/',
+    'https://app.example.test/path', 'https://app.example.test.attacker.test,https://app.example.test'])(
+    'rejects an invalid APP_ORIGIN (%s) without exposing it', (appOrigin) => {
+      expect(() => loadConfiguration({ PORT: '3000', APP_ORIGIN: appOrigin }))
+        .toThrow(/^Invalid configuration: APP_ORIGIN$/);
+    },
+  );
+
+  it('requires HTTPS origin in production', () => {
+    expect(() => loadConfiguration({
+      NODE_ENV: 'production', PORT: '3000', APP_ORIGIN: 'http://app.example.test',
+    })).toThrow(/^Invalid configuration: APP_ORIGIN$/);
+  });
+
+  it.each([undefined, '', 'short', ' '.repeat(32)])(
+    'rejects a missing or weak JWT_SECRET (%s) without exposing it', (jwtSecret) => {
+      expect(() => loadConfiguration({
+        PORT: '3000', APP_ORIGIN: 'http://localhost:5173', JWT_SECRET: jwtSecret,
+      })).toThrow(/^Invalid configuration: JWT_SECRET$/);
+    },
+  );
+
+  it('rejects the local example secret in production', () => {
+    expect(() => loadConfiguration({
+      NODE_ENV: 'production', PORT: '3000', APP_ORIGIN: 'https://app.example.test',
+      JWT_SECRET: 'local-only-change-this-secret-32-bytes-minimum',
+    })).toThrow(/^Invalid configuration: JWT_SECRET$/);
+  });
+
   it('allows an explicit container listen address', () => {
-    expect(loadConfiguration({ PORT: '3000', LISTEN_HOST: '0.0.0.0' }))
+    expect(loadConfiguration({ PORT: '3000', LISTEN_HOST: '0.0.0.0', APP_ORIGIN: 'http://localhost:5173',
+      JWT_SECRET: testJwtSecret }))
       .toMatchObject({ listenHost: '0.0.0.0' });
   });
 
@@ -51,12 +83,16 @@ describe('startup configuration', () => {
       vi.stubEnv('NODE_ENV', nodeEnv);
       vi.stubEnv('PORT', '3000');
       vi.stubEnv('LISTEN_HOST', '127.0.0.1');
+      vi.stubEnv('APP_ORIGIN', nodeEnv === 'production' ? 'https://app.example.test' : 'http://localhost:5173');
+      vi.stubEnv('JWT_SECRET', testJwtSecret);
       const module = await Test.createTestingModule({ imports: [ConfigModule] }).compile();
       try {
         expect(module.get<AppConfig>(APP_CONFIG)).toEqual({
           nodeEnv,
           port: 3000,
           listenHost: '127.0.0.1',
+          appOrigin: nodeEnv === 'production' ? 'https://app.example.test' : 'http://localhost:5173',
+          jwtSecret: testJwtSecret,
         });
       } finally {
         await module.close();
@@ -65,12 +101,16 @@ describe('startup configuration', () => {
   );
 
   it('defaults to development and accepts the boundaries of valid ports', () => {
-    expect(loadConfiguration({ PORT: '1' })).toEqual({
+    expect(loadConfiguration({ PORT: '1', APP_ORIGIN: 'http://localhost:5173',
+      JWT_SECRET: testJwtSecret })).toEqual({
       nodeEnv: 'development',
       port: 1,
       listenHost: '127.0.0.1',
+      appOrigin: 'http://localhost:5173',
+      jwtSecret: testJwtSecret,
     });
-    expect(loadConfiguration({ PORT: '65535' }).port).toBe(65535);
+    expect(loadConfiguration({ PORT: '65535', APP_ORIGIN: 'http://localhost:5173',
+      JWT_SECRET: testJwtSecret }).port).toBe(65535);
   });
 
   it('exits with a sanitized error when the executable receives invalid configuration', () => {

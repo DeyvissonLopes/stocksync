@@ -12,7 +12,37 @@
 | `#docs` | Documentation update |
 | `#test` | Test or verification change |
 
+## Unreleased
+
+## 0.3.0 — 2026-10-07
+
+Identity and browser authentication are available.
+
+- `#add` Provide `POST /auth/logout` to expire the browser session cookie with a 204 response.
+- `#security` Apply browser write protection to logout and avoid claiming to revoke already issued JWTs.
+- `#test` Cover logout, missing or invalid cookies, CSRF rejection and production cookie attributes.
+- `#add` Restore the current user identity through `GET /auth/me` using the HttpOnly session cookie.
+- `#security` Reject missing, invalid, expired, duplicate, inactive and unknown-user sessions; read current tenant and role from PostgreSQL.
+- `#test` Verify session restoration and rejection over HTTP with PostgreSQL.
+- `#add` Provide `POST /auth/login` with a one-hour HttpOnly cookie and current user identity.
+- `#security` Limit login requests by literal email and IP before password verification using `@nestjs/throttler`; return 429 with Retry-After and a fixed 30-second email pause.
+- `#security` Run Argon2id verification for unknown and inactive accounts to reduce timing differences.
+- `#test` Exercise login, cookie attributes, CSRF, rate limits and proxy-header spoofing over HTTP and PostgreSQL.
+- `#add` Verify persisted user credentials with TypeORM and Argon2id, rejecting inactive accounts.
+- `#security` Apply a global guard to browser writes that requires the configured origin, a custom request header and JSON bodies.
+- `#test` Simulate cross-origin and form-based CSRF attempts and verify rejected requests never reach the write handler.
+- `#add` Issue and verify one-hour JWT identity tokens with the configured secret, issuer, audience and restricted claims.
+- `#security` Reject invalid, expired, tampered or wrongly scoped tokens and fail startup on a missing or short JWT secret.
+- `#test` Cover JWT failure cases and Nest module configuration.
+- `#add` Create tenant and user tables with a mandatory tenant link, role constraints and globally unique email.
+- `#add` Apply migrations and seed two demo tenants with admin and operator users during setup.
+- `#change` Use the TypeORM timestamp naming convention for the identity migration and one ordered, transactional runner for registered seeders.
+- `#security` Store demo passwords as verifiable Argon2id hashes.
+- `#test` Verify schema constraints and repeatable seed behavior against PostgreSQL.
+
 ## 0.2.0 — 2026-10-06
+
+Database implementation completed.
 
 - `#add` Connect the NestJS API to PostgreSQL through TypeORM with explicit migration configuration.
 - `#add` Keep development and test databases in separate Compose services; publish only the development database on a configurable localhost port.
@@ -20,6 +50,8 @@
 - `#change` Read database settings from `apps/api/.env`; configure the development PostgreSQL port for the API and local clients through `DB_PORT`.
 
 ## 0.1.0 — 2026-10-05
+
+Infrastructure setup.
 
 - `#add` Set up a NestJS and TypeScript API in `apps/api`.
 - `#add` Validate `NODE_ENV`, `PORT`, and `LISTEN_HOST` at startup without exposing invalid values.

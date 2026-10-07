@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, configuration, and PostgreSQL connection. Business endpoints and the web interface are planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, and logout. Business endpoints and the web interface are planned.
 
 ## Technologies
 
@@ -18,20 +18,44 @@ Current scope: API bootstrap, configuration, and PostgreSQL connection. Business
 
 ## Run the API
 
-With Docker Engine, Docker Compose v2.24+ and Make installed, run from the project root. If port 5432 is already in use, first copy `apps/api/.env.example` to `apps/api/.env` and set `DB_PORT` to a free port:
+With Docker Engine, Docker Compose v2.24+ and Make installed, run from the project root:
 
 ```sh
 make setup
 ```
 
-API: http://127.0.0.1:3000. PostgreSQL is published on `127.0.0.1:5432` by default. Local Node.js/npm are optional.
-Edit `apps/api/.env` to configure both databases. `make setup` creates it from `apps/api/.env.example` when missing. `DB_PORT` sets both the PostgreSQL listening port and its published port; the API connects to `db` on that same port.
+API: http://127.0.0.1:3000. Local Node.js/npm are optional.
 
 To stop:
 
 ```sh
 make down
 ```
+
+## Database configuration
+
+Edit `apps/api/.env` to configure the development and test databases. Setup creates it from `apps/api/.env.example` if it does not exist. PostgreSQL uses `127.0.0.1:5432` by default. If that port is occupied, set `DB_PORT` to a free port before running setup.
+
+`APP_ORIGIN` is the exact browser origin allowed to make write requests. The example uses the planned local Vite origin; set it to the actual frontend origin when that server is introduced. Production requires an HTTPS origin. Browser writes require `X-StockSync-Request: 1` and JSON bodies when a body is sent.
+
+`JWT_SECRET` signs identity tokens. The example value is only for local development and is rejected in production; use a random secret of at least 32 bytes for deployment. The login endpoint issues the token in an HttpOnly cookie.
+
+## Demo tenants and users
+
+Setup applies the identity migration and seeds two tenants, each with an admin and an operator:
+
+| Tenant | Admin | Operator |
+| --- | --- | --- |
+| `alpha` | `admin@alpha.stocksync.test` | `operator@alpha.stocksync.test` |
+| `beta` | `admin@beta.stocksync.test` | `operator@beta.stocksync.test` |
+
+All four accounts use the demo password `StockSyncDemo123!`, stored as an Argon2id hash.
+
+`POST /auth/login` accepts JSON `email` and `password` with literal email matching. It requires `Origin: http://localhost:5173` and `X-StockSync-Request: 1` with the example configuration. Successful login returns the current identity and sets `stocksync_token`. The login route allows five requests per literal email and thirty requests per IP in fifteen minutes, counting successful and failed logins. Excess requests return `429` with `Retry-After`; the email pause is a fixed 30 seconds. The limiter is local to one API process. A browser frontend will use a same-origin `/api` proxy so `SameSite=Lax` can send the cookie.
+
+`GET /auth/me` reads `stocksync_token` from the `Cookie` request header and returns the active user's current identity. Missing or invalid sessions receive `401`; the JWT is never returned in the JSON response.
+
+`POST /auth/logout` clears the browser cookie and returns `204`, including when the cookie is missing or invalid. It requires the configured `Origin` and `X-StockSync-Request: 1`. Logout does not revoke a previously copied JWT; that token remains usable until it expires.
 
 ## Run checks
 

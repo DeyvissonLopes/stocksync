@@ -1,5 +1,6 @@
 import type { EntityManager } from 'typeorm';
 import { IdentitySeeder } from './identity-seeder.js';
+import { ProductSeeder } from './product-seeder.js';
 
 export interface Seeder {
   run(manager: EntityManager): Promise<void>;
@@ -8,7 +9,7 @@ export interface Seeder {
 export class DatabaseSeeder {
   constructor(
     private readonly manager: EntityManager,
-    private readonly seeders: readonly Seeder[] = [new IdentitySeeder()],
+    private readonly seeders: readonly Seeder[] = [new IdentitySeeder(), new ProductSeeder()],
   ) {}
 
   async run(): Promise<void> {

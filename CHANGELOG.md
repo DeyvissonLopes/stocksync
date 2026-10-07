@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Create the tenant-bound products table with SKU, stock, price, version and archive constraints.
+- `#test` Verify product schema rules against PostgreSQL and serialize test files that share the migration database.
+
 ## 0.3.0 — 2026-10-07
 
 Identity and browser authentication are available.

@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Edit active tenant products through an admin-only `PATCH /products/:id` with an expected version and transactional stock audit.
+- `#change` Store the supplied reason for manual stock adjustments and publish new outbox snapshots only when price or stock changes.
+- `#test` Verify stale and concurrent updates, no-op and name-only edits, tenant isolation, permissions, and input validation over HTTP and PostgreSQL.
 - `#add` Create tenant products through an admin-only `POST /products` with an initial stock movement and pending outbox snapshot in one transaction.
 - `#security` Validate creation input and bind the new product to the authenticated tenant and actor; reject duplicate tenant SKUs.
 - `#test` Verify product creation, zero stock, duplicate SKUs, permissions and validation over HTTP and PostgreSQL.

@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading, and admin product creation. Product editing, sales, external sync, and the web interface are planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading, creation and editing. Product archiving, sales, external sync, and the web interface are planned.
 
 ## Technologies
 
@@ -64,6 +64,8 @@ Setup also seeds three products per tenant. Alpha has Blue Mug, A5 Notebook and 
 `GET /products` also requires the session cookie. It accepts `page` (starting at 1, default 1), `name` (case-insensitive literal substring) and `zeroStock=true`; unknown or invalid query parameters return `400`. Pages contain up to 10 active products from the current tenant, ordered by creation date and ID descending. The response has `products` and `pagination: { page, pageSize, total, totalPages }`; an empty catalog has `totalPages: 0`.
 
 `POST /products` requires an admin session, JSON, the configured `Origin`, and `X-StockSync-Request: 1`. Send `{ "sku": "MUG-01", "name": "Blue Mug", "price": "29.90", "stock": 4 }`. SKU uses 1–64 ASCII letters, digits, dots, underscores or hyphens and begins with a letter or digit; name is trimmed to 1–100 characters; price has exactly two decimal places; stock is a nonnegative 32-bit integer. Extra fields are rejected. A successful request returns `201` with `{ "product": { "id", "sku", "name", "price", "stock", "version" } }`; version starts at `"1"`. A positive initial stock records a movement, and every created product records a pending outbox snapshot. Duplicate SKU in the same tenant returns `409`.
+
+`PATCH /products/:id` requires an admin session and the same browser write headers. Send `expectedVersion` as a positive decimal string plus at least one of `name`, `price`, or `stock`. For example, `{ "expectedVersion": "1", "stock": 7, "reason": "Cycle count" }`. A stock field requires a trimmed reason of 1–500 characters; reason without stock is rejected. SKU and tenant cannot be edited. The route returns `200` with the product, `404` for missing, foreign, or archived products, and `409` with `PRODUCT_VERSION_CONFLICT` for a stale version. Real changes increment the version; identical values leave it unchanged. Stock changes record before/after balances and the reason. Price or stock changes add a pending outbox snapshot; name-only changes do not.
 
 ## Run checks
 

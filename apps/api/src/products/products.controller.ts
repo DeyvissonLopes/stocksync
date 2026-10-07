@@ -1,12 +1,49 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException,
-  Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+  Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { SessionGuard } from '../auth/session.guard.js';
 import type { AuthenticatedRequest } from '../auth/session.guard.js';
 import type { ProductEntity } from '../database/entities/product.entity.js';
 import { PRODUCT_PAGE_SIZE, ProductReader } from './product-reader.js';
 import type { ProductListFilters } from './product-reader.js';
 import { ProductWriter } from './product-writer.js';
-import type { NewProduct } from './product-writer.js';
+import type { NewProduct, ProductChanges } from './product-writer.js';
+
+function parseProductChanges(body: unknown): ProductChanges {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    throw new BadRequestException('Invalid product request');
+  }
+  const data = body as Record<string, unknown>;
+  if (Object.keys(data).some((key) =>
+    !['expectedVersion', 'name', 'price', 'stock', 'reason'].includes(key)) ||
+    !('name' in data || 'price' in data || 'stock' in data) ||
+    typeof data.expectedVersion !== 'string' ||
+    !/^[1-9]\d{0,18}$/.test(data.expectedVersion) ||
+    BigInt(data.expectedVersion) > 9223372036854775807n ||
+    ('name' in data && (typeof data.name !== 'string' ||
+      data.name.trim().length === 0 || data.name.trim().length > 100 ||
+      data.name.includes('\0'))) ||
+    ('stock' in data && (typeof data.stock !== 'number' ||
+      !Number.isInteger(data.stock) || data.stock < 0 || data.stock > 2147483647)) ||
+    ('stock' in data && (typeof data.reason !== 'string' ||
+      data.reason.trim().length === 0 || data.reason.trim().length > 500 ||
+      data.reason.includes('\0'))) ||
+    (!('stock' in data) && 'reason' in data) ||
+    ('price' in data && (typeof data.price !== 'string' ||
+      !/^(0|[1-9]\d{0,16})\.\d{2}$/.test(data.price)))) {
+    throw new BadRequestException('Invalid product request');
+  }
+  const priceCents = typeof data.price === 'string' ? BigInt(data.price.replace('.', '')) : null;
+  if (priceCents !== null && priceCents > 9223372036854775807n) {
+    throw new BadRequestException('Invalid product request');
+  }
+  return {
+    expectedVersion: data.expectedVersion as string,
+    ...(typeof data.name === 'string' ? { name: data.name.trim() } : {}),
+    ...(priceCents !== null ? { priceCents: String(priceCents) } : {}),
+    ...(typeof data.stock === 'number' ? { stock: data.stock } : {}),
+    ...(typeof data.reason === 'string' ? { reason: data.reason.trim() } : {}),
+  };
+}
 
 function parseNewProduct(body: unknown): NewProduct {
   if (typeof body !== 'object' || body === null || Array.isArray(body) ||
@@ -93,6 +130,19 @@ export class ProductsController {
     const input = parseNewProduct(body);
     const product = await this.writer.create(request.identity.tenantId,
       request.identity.userId, input);
+    return { product: productResponse(product) };
+  }
+
+  @Patch(':id')
+  async update(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    if (request.identity.role !== 'admin') throw new ForbiddenException();
+    const changes = parseProductChanges(body);
+    const product = await this.writer.update(request.identity.tenantId,
+      request.identity.userId, id, changes);
     return { product: productResponse(product) };
   }
 

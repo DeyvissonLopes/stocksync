@@ -82,6 +82,17 @@ describe('product movement and outbox schema', () => {
         }
       }
 
+      const manualMovement = (note: string | null) => runner.query(
+        `INSERT INTO stock_movements
+          (tenant_id, product_id, user_id, reason, note, quantity_delta,
+           stock_before, stock_after)
+         VALUES ($1, $2, $3, 'manual_adjustment', $4, -1, 3, 2) RETURNING id`,
+        [tenantA, productA, actorA, note],
+      ) as Promise<Array<{ id: string }>>;
+      await rejected(() => manualMovement(null));
+      await rejected(() => manualMovement('\t'));
+      expect((await manualMovement('Cycle count'))[0]?.id).toBeDefined();
+
       await rejected(() => movement(tenantA, productB, actorA));
       await rejected(() => movement(tenantA, productA, actorB));
       await rejected(() => movement(tenantA, productA, actorA, 3, 2));

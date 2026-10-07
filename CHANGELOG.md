@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Prepare tenant-bound sales and sale items with a unique idempotency key per tenant and captured unit prices.
+- `#security` Require matching tenant links for the sale actor, items and stock movements; allow one sale movement per item.
+- `#test` Verify sales schema uniqueness, value checks and cross-tenant rejection in PostgreSQL.
 - `#test` Explicitly verify that PostgreSQL rejects negative product stock on update and negative movement balances.
 
 ## 0.4.0 — 2026-10-07

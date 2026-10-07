@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Run one sync dispatcher round that reconciles existing batches before forming and publishing the next.
+- `#test` Verify recovery before new batching and retry of a persisted batch after queue publication fails.
 - `#add` Reconcile persisted batches with missing or retained BullMQ jobs without creating new batches.
 - `#test` Verify recovery of both publication gaps, duplicate avoidance and terminal batch protection over PostgreSQL.
 - `#add` Store sync jobs in BullMQ's PostgreSQL backend after an explicit schema migration.

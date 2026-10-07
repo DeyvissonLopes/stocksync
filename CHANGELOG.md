@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Read active product details through authenticated `GET /products/:id`, with decimal price and string version.
+- `#security` Scope product lookup to the session tenant and return 404 for foreign or archived products.
+- `#test` Verify product access, tenant isolation and session rejection over HTTP and PostgreSQL.
 - `#add` Create the tenant-bound products table with SKU, stock, price, version and archive constraints.
 - `#test` Verify product schema rules against PostgreSQL and serialize test files that share the migration database.
 

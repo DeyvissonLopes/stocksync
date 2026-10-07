@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, and the product table schema. Product endpoints and the web interface are planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, the product table schema, and authenticated product detail reading. Other product endpoints and the web interface are planned.
 
 ## Technologies
 
@@ -57,7 +57,7 @@ All four accounts use the demo password `StockSyncDemo123!`, stored as an Argon2
 
 `POST /auth/logout` clears the browser cookie and returns `204`, including when the cookie is missing or invalid. It requires the configured `Origin` and `X-StockSync-Request: 1`. Logout does not revoke a previously copied JWT; that token remains usable until it expires.
 
-The `products` table has a required tenant link, a SKU unique within each tenant (including archived products), nonnegative stock and price in cents, a positive version, and an archive actor from the same tenant. No product HTTP endpoint is available yet.
+`GET /products/:id` requires the session cookie and returns only an active product from the user's tenant. It returns `404` for an absent, archived, or other-tenant product. The response uses a decimal string for `price` and a string for `version` to preserve bigint precision. Product creation and listing are planned.
 
 ## Run checks
 

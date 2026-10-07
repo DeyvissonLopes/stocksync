@@ -7,6 +7,7 @@ import { APP_CONFIG } from './config/app-config.js';
 import type { AppConfig } from './config/app-config.js';
 import { ConfigModule } from './config/config.module.js';
 import { loadDatabaseOptions } from './database/database-options.js';
+import { ProductsModule } from './products/products.module.js';
 import { BrowserSecurityModule } from './security/browser-security.module.js';
 
 @Module({
@@ -15,6 +16,7 @@ import { BrowserSecurityModule } from './security/browser-security.module.js';
     AuthModule,
     AuthTokenModule,
     BrowserSecurityModule,
+    ProductsModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [APP_CONFIG],

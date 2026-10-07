@@ -1,7 +1,9 @@
 import type { DataSource } from 'typeorm';
 import type { EntityManager } from 'typeorm';
 import { UnrecoverableError } from 'bullmq';
+import { setTimeout as delay } from 'node:timers/promises';
 import { markSyncBatchFailed } from './sync-batch-failure.js';
+import { retryAfterMs, SyncRateLimitedError } from './sync-retry.js';
 
 type JobData = { batchId: string; tenantId: string };
 type BatchRow = { status: string; attempts_started: number };
@@ -9,6 +11,27 @@ type EventRow = { id: string; product_id: string; sku: string; stock: number;
   price_cents: string; product_version: string; status: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+class SyncSendPacer {
+  private nextAt: number | undefined;
+  private tail = Promise.resolve();
+
+  wait(): Promise<void> {
+    const turn = this.tail.then(async () => {
+      const now = performance.now();
+      this.nextAt ??= now + 250;
+      const remaining = this.nextAt - now;
+      if (remaining > 0) await delay(remaining);
+      this.nextAt = performance.now() + 250;
+    });
+    this.tail = turn.catch(() => {});
+    return turn;
+  }
+
+  postpone(milliseconds: number): void {
+    this.nextAt = Math.max(this.nextAt ?? 0, performance.now() + milliseconds);
+  }
+}
 
 function jobData(value: unknown): value is JobData {
   if (typeof value !== 'object' || value === null) return false;
@@ -35,6 +58,8 @@ function validAck(value: unknown, batchId: string, eventIds: string[]): boolean 
 }
 
 export class SyncBatchProcessor {
+  private readonly pacer = new SyncSendPacer();
+
   constructor(private readonly db: DataSource, private readonly endpoint: string) {}
 
   async process(value: unknown): Promise<void> {
@@ -49,6 +74,7 @@ export class SyncBatchProcessor {
 
     let response: Response;
     try {
+      await this.pacer.wait();
       response = await fetch(this.endpoint, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ batchId, tenantId, updates: events.map((event) => ({
@@ -67,9 +93,13 @@ export class SyncBatchProcessor {
     }
     if (response.status !== 200) {
       const reason = `HTTP_${response.status}`;
+      const retryAfter = response.status === 429
+        ? retryAfterMs(response.headers.get('retry-after')) : undefined;
+      if (retryAfter !== undefined) this.pacer.postpone(retryAfter);
       await this.failAttempt(batchId, tenantId, attempt, reason,
         response.status < 500 && response.status !== 408 && response.status !== 429,
-        new Error(`Sync destination returned ${response.status}`));
+        response.status === 429 ? new SyncRateLimitedError(retryAfter ?? 0)
+          : new Error(`Sync destination returned ${response.status}`));
       return;
     }
     const ack: unknown = await response.json().catch(() => null);

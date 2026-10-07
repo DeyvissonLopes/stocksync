@@ -31,34 +31,49 @@ afterAll(async () => {
   if (db?.isInitialized) await db.destroy();
 });
 
+type BatchFixture = { batchId: string; tenantId: string; productId: string; eventId: string };
+
+async function withBatches(count: number, check: (batches: BatchFixture[]) => Promise<void>) {
+  const batches: BatchFixture[] = [];
+  try {
+    for (let index = 0; index < count; index++) {
+      const tenantId = (await db.query(
+        'INSERT INTO tenants (slug, name) VALUES ($1, $2) RETURNING id',
+        [`sync-worker-${randomUUID()}`, 'Sync Worker Test'],
+      ) as Array<{ id: string }>)[0]!.id;
+      const productId = (await db.query(
+        `INSERT INTO products (tenant_id, sku, name, stock, price_cents)
+         VALUES ($1, 'WORKER-1', 'Worker Product', 5, 1290) RETURNING id`, [tenantId],
+      ) as Array<{ id: string }>)[0]!.id;
+      const eventId = (await db.query(
+        `INSERT INTO outbox_events
+           (tenant_id, product_id, product_version, sku, stock, price_cents)
+         VALUES ($1, $2, 1, 'WORKER-1', 5, 1290) RETURNING id`,
+        [tenantId, productId],
+      ) as Array<{ id: string }>)[0]!.id;
+      const batchId = (await new SyncBatcher(db).createForTenant(tenantId))!.id;
+      batches.push({ batchId, tenantId, productId, eventId });
+      await new SyncJobPublisher(db, queue).publish(batchId);
+    }
+    await check(batches);
+  } finally {
+    for (const { batchId, tenantId } of batches) {
+      await (await queue.getJob(syncBatchJobId(batchId)))?.remove();
+      await db.query('DELETE FROM mock_sync.products WHERE tenant_id = $1', [tenantId]);
+      await db.query('DELETE FROM outbox_events WHERE tenant_id = $1', [tenantId]);
+      await db.query('DELETE FROM sync_batches WHERE tenant_id = $1', [tenantId]);
+      await db.query('DELETE FROM products WHERE tenant_id = $1', [tenantId]);
+      await db.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
+    }
+  }
+}
+
 async function withBatch(check: (batchId: string, tenantId: string,
   productId: string, eventId: string) => Promise<void>) {
-  const tenantId = (await db.query(
-    'INSERT INTO tenants (slug, name) VALUES ($1, $2) RETURNING id',
-    [`sync-worker-${randomUUID()}`, 'Sync Worker Test'],
-  ) as Array<{ id: string }>)[0]!.id;
-  const productId = (await db.query(
-    `INSERT INTO products (tenant_id, sku, name, stock, price_cents)
-     VALUES ($1, 'WORKER-1', 'Worker Product', 5, 1290) RETURNING id`, [tenantId],
-  ) as Array<{ id: string }>)[0]!.id;
-  const eventId = (await db.query(
-    `INSERT INTO outbox_events
-       (tenant_id, product_id, product_version, sku, stock, price_cents)
-     VALUES ($1, $2, 1, 'WORKER-1', 5, 1290) RETURNING id`,
-    [tenantId, productId],
-  ) as Array<{ id: string }>)[0]!.id;
-  const batchId = (await new SyncBatcher(db).createForTenant(tenantId))!.id;
-  await new SyncJobPublisher(db, queue).publish(batchId);
-  try {
-    await check(batchId, tenantId, productId, eventId);
-  } finally {
-    await (await queue.getJob(syncBatchJobId(batchId)))?.remove();
-    await db.query('DELETE FROM mock_sync.products WHERE tenant_id = $1', [tenantId]);
-    await db.query('DELETE FROM outbox_events WHERE tenant_id = $1', [tenantId]);
-    await db.query('DELETE FROM sync_batches WHERE tenant_id = $1', [tenantId]);
-    await db.query('DELETE FROM products WHERE tenant_id = $1', [tenantId]);
-    await db.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
-  }
+  await withBatches(1, async ([batch]) => {
+    if (!batch) throw new Error('Missing sync batch fixture');
+    await check(batch.batchId, batch.tenantId, batch.productId, batch.eventId);
+  });
 }
 
 async function withServer(server: Server, check: (endpoint: string) => Promise<void>) {
@@ -151,6 +166,93 @@ describe('sync batch processing over BullMQ, HTTP and PostgreSQL', () => {
           )).toEqual([{ status: 'sent', attempts_started: 2, last_error: null }]);
           expect(await db.query('SELECT status FROM outbox_events WHERE id = $1',
             [eventId])).toEqual([{ status: 'sent' }]);
+        } finally {
+          await worker.close();
+        }
+      });
+    });
+  });
+
+  it('paces HTTP starts globally across tenants within a rolling second', async () => {
+    await withBatches(6, async (batches) => {
+      const starts: number[] = [];
+      const fake = createServer(async (request, response) => {
+        starts.push(performance.now());
+        const chunks: Buffer[] = [];
+        for await (const chunk of request) chunks.push(Buffer.from(chunk as Uint8Array));
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+          batchId: string; updates: Array<{ eventId: string }> };
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ batchId: body.batchId,
+          acknowledgedEventIds: body.updates.map((update) => update.eventId) }));
+      });
+      await withServer(fake, async (endpoint) => {
+        const worker = createSyncWorker(process.env, new SyncBatchProcessor(db, endpoint));
+        try {
+          for (const batch of batches) await waitForCompletion(batch.batchId);
+          expect(starts).toHaveLength(6);
+          for (let index = 1; index < starts.length; index++) {
+            expect(starts[index]! - starts[index - 1]!).toBeGreaterThanOrEqual(240);
+          }
+          expect(starts[5]! - starts[0]!).toBeGreaterThanOrEqual(1000);
+        } finally {
+          await worker.close();
+        }
+      });
+    });
+  });
+
+  it('waits for Retry-After before retrying HTTP 429', async () => {
+    await withBatch(async (batchId, _tenantId, _productId, eventId) => {
+      const starts: number[] = [];
+      const fake = createServer((_request, response) => {
+        starts.push(performance.now());
+        if (starts.length === 1) {
+          response.writeHead(429, { 'retry-after': '2' }).end();
+        } else {
+          response.writeHead(200, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ batchId, acknowledgedEventIds: [eventId] }));
+        }
+      });
+      await withServer(fake, async (endpoint) => {
+        const worker = createSyncWorker(process.env, new SyncBatchProcessor(db, endpoint));
+        try {
+          await waitForCompletion(batchId);
+          expect(starts).toHaveLength(2);
+          expect(starts[1]! - starts[0]!).toBeGreaterThanOrEqual(1900);
+        } finally {
+          await worker.close();
+        }
+      });
+    });
+  });
+
+  it('holds another tenant batch during the 429 Retry-After window', async () => {
+    await withBatches(2, async (batches) => {
+      const starts: Array<{ batchId: string; at: number }> = [];
+      const fake = createServer(async (request, response) => {
+        const at = performance.now();
+        const chunks: Buffer[] = [];
+        for await (const chunk of request) chunks.push(Buffer.from(chunk as Uint8Array));
+        const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+          batchId: string; updates: Array<{ eventId: string }> };
+        starts.push({ batchId: body.batchId, at });
+        if (starts.length === 1) {
+          response.writeHead(429, { 'retry-after': '2' }).end();
+        } else {
+          response.writeHead(200, { 'content-type': 'application/json' });
+          response.end(JSON.stringify({ batchId: body.batchId,
+            acknowledgedEventIds: body.updates.map((update) => update.eventId) }));
+        }
+      });
+      await withServer(fake, async (endpoint) => {
+        const worker = createSyncWorker(process.env, new SyncBatchProcessor(db, endpoint));
+        try {
+          for (const batch of batches) await waitForCompletion(batch.batchId);
+          expect(starts).toHaveLength(3);
+          expect(starts[0]!.batchId).toBe(batches[0]!.batchId);
+          expect(starts[1]!.batchId).toBe(batches[1]!.batchId);
+          expect(starts[1]!.at - starts[0]!.at).toBeGreaterThanOrEqual(1900);
         } finally {
           await worker.close();
         }

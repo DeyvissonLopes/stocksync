@@ -2,6 +2,7 @@ import { Queue, Worker, createPostgresBackend, runMigrations } from 'bullmq';
 import { Pool } from 'pg';
 import { loadDatabaseOptions } from '../database/database-options.js';
 import type { SyncBatchProcessor } from './sync-batch-processor.js';
+import { syncRetryDelay } from './sync-retry.js';
 
 export const SYNC_QUEUE_NAME = 'product-sync';
 export const syncBatchJobId = (batchId: string): string => `batch-${batchId}`;
@@ -33,7 +34,9 @@ export function createSyncWorker(env: NodeJS.ProcessEnv, processor: SyncBatchPro
     if (job.name !== 'sync-batch') throw new Error('Invalid sync job type');
     return processor.process(job.data);
   },
-    { connection: connection(env), concurrency: 1 }, createPostgresBackend);
+    { connection: connection(env), concurrency: 1,
+      limiter: { max: 1, duration: 250 },
+      settings: { backoffStrategy: syncRetryDelay } }, createPostgresBackend);
 }
 
 export async function migrateSyncQueue(env: NodeJS.ProcessEnv): Promise<void> {

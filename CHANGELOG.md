@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Pace sync HTTP calls across tenants and honor `Retry-After` for 429 retries and later batches.
+- `#test` Verify rolling-window send cadence and cross-tenant 429 cooldown with BullMQ, PostgreSQL and HTTP.
 - `#add` Retry transient sync failures with bounded exponential backoff and persist terminal batch/event failures, including reconciliation after a worker crash.
 - `#test` Verify transient retry, permanent HTTP failure, exhausted call budget and retained failed-job recovery, including a failed terminal database write, with BullMQ, HTTP and PostgreSQL.
 - `#add` Consume sync batch jobs through a BullMQ worker processor that sends immutable outbox snapshots and records complete ACKs atomically.

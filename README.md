@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. Pending product snapshots can be grouped into tenant sync batches, and a batch can be published as a BullMQ job in PostgreSQL. No scheduled dispatcher, worker or external delivery runs yet. The web interface is planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. Pending product snapshots can be grouped into tenant sync batches; jobs can be published and reconciled with BullMQ in PostgreSQL. No scheduled dispatcher, worker or external delivery runs yet. The web interface is planned.
 
 ## Technologies
 

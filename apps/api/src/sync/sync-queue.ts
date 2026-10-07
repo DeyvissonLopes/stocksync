@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { loadDatabaseOptions } from '../database/database-options.js';
 
 export const SYNC_QUEUE_NAME = 'product-sync';
+export const syncBatchJobId = (batchId: string): string => `batch-${batchId}`;
 
 function connection(env: NodeJS.ProcessEnv) {
   const database = loadDatabaseOptions(env);

@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Reconcile persisted batches with missing or retained BullMQ jobs without creating new batches.
+- `#test` Verify recovery of both publication gaps, duplicate avoidance and terminal batch protection over PostgreSQL.
 - `#add` Store sync jobs in BullMQ's PostgreSQL backend after an explicit schema migration.
 - `#add` Publish one stable job per persisted batch and mark it queued after publication.
 - `#test` Verify queue migration, job persistence across connections, duplicate publication and terminal batch protection.

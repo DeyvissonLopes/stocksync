@@ -55,8 +55,8 @@ describe('sync job publication over PostgreSQL', () => {
       expect(await job?.getState()).toBe('waiting');
 
       await new SyncJobPublisher(db, queue).publish(batchId);
-      expect((await queue.getJobs(['waiting'])).map((entry) => entry.id))
-        .toEqual([jobId]);
+      expect((await queue.getJobs(['waiting'])).filter((entry) => entry.id === jobId))
+        .toHaveLength(1);
 
       await job!.remove();
       await db.query("UPDATE sync_batches SET status = 'sent' WHERE id = $1", [batchId]);

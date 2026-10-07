@@ -1,4 +1,5 @@
 import type { DataSource } from 'typeorm';
+import { syncBatchJobId } from './sync-queue.js';
 import type { createSyncQueue } from './sync-queue.js';
 
 export class SyncJobPublisher {
@@ -14,7 +15,7 @@ export class SyncJobPublisher {
     if (batch.status !== 'pending' && batch.status !== 'queued') return;
 
     await this.queue.add('sync-batch', { batchId, tenantId: batch.tenant_id }, {
-      jobId: `batch-${batchId}`,
+      jobId: syncBatchJobId(batchId),
       removeOnComplete: false,
       removeOnFail: false,
     });

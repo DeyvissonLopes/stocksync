@@ -1,4 +1,5 @@
 import type { DataSource } from 'typeorm';
+import { markSyncBatchFailed } from './sync-batch-failure.js';
 import { SyncJobPublisher } from './sync-job-publisher.js';
 import { syncBatchJobId } from './sync-queue.js';
 import type { createSyncQueue } from './sync-queue.js';
@@ -18,9 +19,10 @@ export class SyncBatchReconciler {
     let cursor: { created_at: Date; id: string } | undefined;
 
     while (true) {
-      const batches: Array<{ id: string; status: string; created_at: Date }> =
+      const batches: Array<{ id: string; tenant_id: string; status: string;
+        created_at: Date }> =
         await this.dataSource.query(
-          `SELECT id, status, created_at FROM sync_batches
+          `SELECT id, tenant_id, status, created_at FROM sync_batches
            WHERE status IN ('pending', 'queued')
              AND ($1::timestamptz IS NULL OR (created_at, id) > ($1::timestamptz, $2::uuid))
            ORDER BY created_at, id LIMIT 50`,
@@ -36,7 +38,12 @@ export class SyncBatchReconciler {
           continue;
         }
         const state = await job.getState();
-        if (state === 'completed' || state === 'failed' || state === 'unknown') {
+        if (state === 'failed') {
+          await this.dataSource.transaction((manager) =>
+            markSyncBatchFailed(manager, batch.id, batch.tenant_id, 'JOB_FAILED'));
+          continue;
+        }
+        if (state === 'completed' || state === 'unknown') {
           result.unresolved.push({ batchId: batch.id, jobState: state });
           continue;
         }

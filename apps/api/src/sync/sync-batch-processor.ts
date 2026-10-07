@@ -1,5 +1,7 @@
 import type { DataSource } from 'typeorm';
 import type { EntityManager } from 'typeorm';
+import { UnrecoverableError } from 'bullmq';
+import { markSyncBatchFailed } from './sync-batch-failure.js';
 
 type JobData = { batchId: string; tenantId: string };
 type BatchRow = { status: string; attempts_started: number };
@@ -38,28 +40,72 @@ export class SyncBatchProcessor {
   async process(value: unknown): Promise<void> {
     if (!jobData(value)) throw new Error('Invalid sync job');
     const { batchId, tenantId } = value;
-    const events = await this.reserveAndLoad(batchId, tenantId);
-    if (!events) return;
+    const reservation = await this.reserveAndLoad(batchId, tenantId);
+    if (!reservation) return;
+    if (reservation === 'exhausted') {
+      throw new UnrecoverableError('Sync attempt budget exhausted');
+    }
+    const { events, attempt } = reservation;
 
-    const response = await fetch(this.endpoint, {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ batchId, tenantId, updates: events.map((event) => ({
-        eventId: event.id, productId: event.product_id, sku: event.sku,
-        stock: event.stock, price: priceFromCents(event.price_cents),
-        version: event.product_version,
-      })) }),
-      signal: AbortSignal.timeout(2000), redirect: 'error',
-    });
-    if (response.status !== 200) throw new Error(`Sync destination returned ${response.status}`);
+    let response: Response;
+    try {
+      response = await fetch(this.endpoint, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ batchId, tenantId, updates: events.map((event) => ({
+          eventId: event.id, productId: event.product_id, sku: event.sku,
+          stock: event.stock, price: priceFromCents(event.price_cents),
+          version: event.product_version,
+        })) }),
+        signal: AbortSignal.timeout(2000), redirect: 'error',
+      });
+    } catch (error) {
+      const reason = error instanceof Error && error.name === 'TimeoutError'
+        ? 'TIMEOUT' : 'NETWORK_ERROR';
+      await this.failAttempt(batchId, tenantId, attempt, reason, false,
+        new Error(`Sync destination ${reason.toLowerCase()}`));
+      return;
+    }
+    if (response.status !== 200) {
+      const reason = `HTTP_${response.status}`;
+      await this.failAttempt(batchId, tenantId, attempt, reason,
+        response.status < 500 && response.status !== 408 && response.status !== 429,
+        new Error(`Sync destination returned ${response.status}`));
+      return;
+    }
     const ack: unknown = await response.json().catch(() => null);
     const eventIds = events.map((event) => event.id);
-    if (!validAck(ack, batchId, eventIds)) throw new Error('Invalid sync acknowledgement');
+    if (!validAck(ack, batchId, eventIds)) {
+      await this.failAttempt(batchId, tenantId, attempt, 'INVALID_ACK', false,
+        new Error('Invalid sync acknowledgement'));
+      return;
+    }
 
     await this.db.transaction((manager) =>
       this.markSent(manager, batchId, tenantId, eventIds));
   }
 
-  private reserveAndLoad(batchId: string, tenantId: string): Promise<EventRow[] | null> {
+  private async failAttempt(batchId: string, tenantId: string, attempt: number,
+    reason: string, permanent: boolean, error: Error): Promise<never> {
+    const terminal = permanent || attempt >= 5;
+    if (terminal) {
+      try {
+        await this.db.transaction((manager) =>
+          markSyncBatchFailed(manager, batchId, tenantId, reason));
+      } catch {
+        // The reconciler mirrors a retained failed job if this write did not commit.
+      }
+      throw new UnrecoverableError(error.message);
+    }
+    await this.db.query(
+      `UPDATE sync_batches SET last_error = $3
+       WHERE id = $1 AND tenant_id = $2 AND status IN ('pending', 'queued')`,
+      [batchId, tenantId, reason],
+    );
+    throw error;
+  }
+
+  private reserveAndLoad(batchId: string, tenantId: string):
+    Promise<{ events: EventRow[]; attempt: number } | 'exhausted' | null> {
     return this.db.transaction(async (manager) => {
       const batches: BatchRow[] = await manager.query(
         'SELECT status, attempts_started FROM sync_batches WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
@@ -67,11 +113,15 @@ export class SyncBatchProcessor {
       );
       const batch = batches[0];
       if (!batch) throw new Error('Sync batch does not belong to job tenant');
-      if (batch.status === 'sent' || batch.status === 'failed') return null;
+      if (batch.status === 'sent') return null;
+      if (batch.status === 'failed') throw new UnrecoverableError('Sync batch failed');
       if (batch.status !== 'pending' && batch.status !== 'queued') {
         throw new Error('Invalid sync batch status');
       }
-      if (batch.attempts_started >= 5) throw new Error('Sync attempt budget exhausted');
+      if (batch.attempts_started >= 5) {
+        await markSyncBatchFailed(manager, batchId, tenantId, 'ATTEMPT_BUDGET_EXHAUSTED');
+        return 'exhausted';
+      }
 
       const events: EventRow[] = await manager.query(
         `SELECT id, product_id, sku, stock, price_cents, product_version, status
@@ -86,7 +136,7 @@ export class SyncBatchProcessor {
         'UPDATE sync_batches SET attempts_started = attempts_started + 1 WHERE id = $1 AND tenant_id = $2',
         [batchId, tenantId],
       );
-      return events;
+      return { events, attempt: batch.attempts_started + 1 };
     });
   }
 

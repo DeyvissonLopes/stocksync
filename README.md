@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. An optional dispatcher process reconciles existing sync batches, then forms and publishes new batches through BullMQ in PostgreSQL. An internal HTTP mock can receive versioned batches. The worker's success path is tested, but no continuous worker process or automatic external delivery runs yet. The web interface is planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. An optional dispatcher process reconciles existing sync batches, then forms and publishes new batches through BullMQ in PostgreSQL. An internal HTTP mock can receive versioned batches. The worker's success, retry and terminal failure paths are tested, but no continuous worker process or automatic external delivery runs yet. The web interface is planned.
 
 ## Technologies
 
@@ -30,12 +30,14 @@ API: http://127.0.0.1:3000. Local Node.js/npm are optional.
 After setup, run `make sync-dispatcher` to start the optional sync dispatcher
 as a separate container. It publishes jobs, but no continuous worker consumes
 them yet.
-The worker processor now loads snapshots from the persisted batch, sends one
-HTTP request, requires an exact ACK and atomically marks the batch and events
-as sent. It reserves a durable attempt before HTTP and never calls the mock
-again for a sent batch. A continuous worker is not started yet: retry,
-backoff, global send cadence and terminal failure handling are the next sync
-work before enabling it in Compose.
+The worker processor loads snapshots from the persisted batch, sends one HTTP
+request per attempt, requires an exact ACK and atomically marks the batch and
+events as sent. Jobs retry transient errors up to five times with exponential
+backoff and jitter; permanent HTTP 4xx errors (except 408/429) and exhausted
+attempts mark the batch and events failed. The reconciler mirrors retained
+failed jobs after a crash.
+A continuous worker is not started yet: global send cadence and handling
+`Retry-After` on HTTP 429 are the next sync work before enabling it in Compose.
 Run `make sync-mock` to start the external-service simulator. It has no host
 port; the future worker will reach it at `http://sync-mock:3001/batches` on the
 Compose network. `GET /health` reports process health. The mock accepts

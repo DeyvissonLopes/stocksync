@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Retry transient sync failures with bounded exponential backoff and persist terminal batch/event failures, including reconciliation after a worker crash.
+- `#test` Verify transient retry, permanent HTTP failure, exhausted call budget and retained failed-job recovery, including a failed terminal database write, with BullMQ, HTTP and PostgreSQL.
 - `#add` Consume sync batch jobs through a BullMQ worker processor that sends immutable outbox snapshots and records complete ACKs atomically.
 - `#test` Verify real queue consumption, tenant mismatch rejection, snapshot delivery, ACK validation, replay safety and durable attempt reservation over PostgreSQL and HTTP.
 - `#add` Run an internal HTTP sync mock with durable tenant/product versions and exact batch event ACKs.

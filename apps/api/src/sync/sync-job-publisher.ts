@@ -18,6 +18,8 @@ export class SyncJobPublisher {
       jobId: syncBatchJobId(batchId),
       removeOnComplete: false,
       removeOnFail: false,
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 1000, jitter: 0.5 },
     });
     await this.dataSource.query(
       `UPDATE sync_batches SET status = 'queued', queued_at = COALESCE(queued_at, now())

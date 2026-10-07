@@ -4,7 +4,8 @@ import { DataSource } from 'typeorm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadDatabaseOptions } from '../src/database/database-options.js';
 import { SyncBatchReconciler } from '../src/sync/sync-batch-reconciler.js';
-import { createSyncQueue, migrateSyncQueue } from '../src/sync/sync-queue.js';
+import { SyncBatchProcessor } from '../src/sync/sync-batch-processor.js';
+import { createSyncQueue, createSyncWorker, migrateSyncQueue } from '../src/sync/sync-queue.js';
 
 let db: DataSource;
 let queue: ReturnType<typeof createSyncQueue>;
@@ -22,6 +23,61 @@ afterAll(async () => {
 });
 
 describe('sync batch reconciliation over PostgreSQL', () => {
+  it('mirrors a retained failed job to the batch and its pending events', async () => {
+    const tenantId = (await db.query(
+      'INSERT INTO tenants (slug, name) VALUES ($1, $2) RETURNING id',
+      [`sync-${randomUUID()}`, 'Sync Reconciler Failure Test'],
+    ) as Array<{ id: string }>)[0]!.id;
+    const productId = (await db.query(
+      `INSERT INTO products (tenant_id, sku, name, stock, price_cents)
+       VALUES ($1, 'RECONCILE-1', 'Reconcile Product', 1, 100) RETURNING id`,
+      [tenantId],
+    ) as Array<{ id: string }>)[0]!.id;
+    const batchId = (await db.query(
+      `INSERT INTO sync_batches (tenant_id, status) VALUES ($1, 'queued') RETURNING id`,
+      [tenantId],
+    ) as Array<{ id: string }>)[0]!.id;
+    await db.query(
+      `INSERT INTO outbox_events
+       (tenant_id, product_id, batch_id, product_version, sku, stock, price_cents)
+       VALUES ($1, $2, $3, 1, 'RECONCILE-1', 1, 100)`,
+      [tenantId, productId, batchId],
+    );
+    const jobId = `batch-${batchId}`;
+    try {
+      await queue.add('invalid-job-type', { batchId, tenantId },
+        { jobId, attempts: 1, removeOnFail: false });
+      const worker = createSyncWorker(process.env,
+        new SyncBatchProcessor(db, 'http://127.0.0.1:1/batches'));
+      try {
+        const job = await queue.getJob(jobId);
+        const deadline = Date.now() + 5000;
+        while (Date.now() < deadline && await job?.getState() !== 'failed') {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        expect(await job?.getState()).toBe('failed');
+      } finally {
+        await worker.close();
+      }
+
+      expect(await new SyncBatchReconciler(db, queue).reconcile())
+        .toEqual({ publicationAttempts: 0, unresolved: [] });
+      expect(await db.query(
+        'SELECT status, failed_at, last_error FROM sync_batches WHERE id = $1',
+        [batchId],
+      )).toEqual([{ status: 'failed', failed_at: expect.any(Date),
+        last_error: 'JOB_FAILED' }]);
+      expect(await db.query('SELECT status FROM outbox_events WHERE batch_id = $1',
+        [batchId])).toEqual([{ status: 'failed' }]);
+    } finally {
+      await (await queue.getJob(jobId))?.remove();
+      await db.query('DELETE FROM outbox_events WHERE tenant_id = $1', [tenantId]);
+      await db.query('DELETE FROM sync_batches WHERE tenant_id = $1', [tenantId]);
+      await db.query('DELETE FROM products WHERE tenant_id = $1', [tenantId]);
+      await db.query('DELETE FROM tenants WHERE id = $1', [tenantId]);
+    }
+  });
+
   it('repairs both publication gaps without duplicating retained jobs', async () => {
     const tenantId = (await db.query(
       'INSERT INTO tenants (slug, name) VALUES ($1, $2) RETURNING id',

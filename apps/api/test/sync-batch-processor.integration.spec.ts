@@ -3,10 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import { DataSource } from 'typeorm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadDatabaseOptions } from '../src/database/database-options.js';
 import { createMockSyncServer } from '../src/sync/mock/mock-sync-server.js';
 import { SyncBatchProcessor } from '../src/sync/sync-batch-processor.js';
+import { SyncBatchReconciler } from '../src/sync/sync-batch-reconciler.js';
 import { SyncBatcher } from '../src/sync/sync-batcher.js';
 import { SyncJobPublisher } from '../src/sync/sync-job-publisher.js';
 import { createSyncQueue, createSyncWorker, migrateSyncQueue,
@@ -73,7 +74,7 @@ async function withServer(server: Server, check: (endpoint: string) => Promise<v
 }
 
 async function waitForCompletion(batchId: string) {
-  const deadline = Date.now() + 5000;
+  const deadline = Date.now() + 10000;
   const jobId = syncBatchJobId(batchId);
   while (Date.now() < deadline) {
     const state = await (await queue.getJob(jobId))?.getState();
@@ -130,7 +131,119 @@ describe('sync batch processing over BullMQ, HTTP and PostgreSQL', () => {
     });
   });
 
-  it('keeps the batch pending confirmation when HTTP 200 has an invalid ACK', async () => {
+  it('retries a transient HTTP failure and confirms the next successful attempt', async () => {
+    await withBatch(async (batchId, tenantId, _productId, eventId) => {
+      let calls = 0;
+      const fake = createServer((_request, response) => {
+        calls++;
+        response.writeHead(calls === 1 ? 503 : 200,
+          { 'content-type': 'application/json' });
+        response.end(JSON.stringify({ batchId, acknowledgedEventIds: [eventId] }));
+      });
+      await withServer(fake, async (endpoint) => {
+        const worker = createSyncWorker(process.env, new SyncBatchProcessor(db, endpoint));
+        try {
+          await waitForCompletion(batchId);
+          expect(calls).toBe(2);
+          expect(await db.query(
+            'SELECT status, attempts_started, last_error FROM sync_batches WHERE id = $1',
+            [batchId],
+          )).toEqual([{ status: 'sent', attempts_started: 2, last_error: null }]);
+          expect(await db.query('SELECT status FROM outbox_events WHERE id = $1',
+            [eventId])).toEqual([{ status: 'sent' }]);
+        } finally {
+          await worker.close();
+        }
+      });
+    });
+  });
+
+  it('fails a permanent HTTP error without another call', async () => {
+    await withBatch(async (batchId, tenantId, _productId, eventId) => {
+      let calls = 0;
+      const fake = createServer((_request, response) => {
+        calls++;
+        response.writeHead(400).end();
+      });
+      await withServer(fake, async (endpoint) => {
+        const worker = createSyncWorker(process.env, new SyncBatchProcessor(db, endpoint));
+        try {
+          const job = await queue.getJob(syncBatchJobId(batchId));
+          const deadline = Date.now() + 5000;
+          while (Date.now() < deadline && await job?.getState() !== 'failed') {
+            await new Promise((resolve) => setTimeout(resolve, 25));
+          }
+          expect(await job?.getState()).toBe('failed');
+          expect(calls).toBe(1);
+          expect(await db.query(
+            'SELECT status, attempts_started, failed_at, last_error FROM sync_batches WHERE id = $1',
+            [batchId],
+          )).toEqual([{ status: 'failed', attempts_started: 1,
+            failed_at: expect.any(Date), last_error: 'HTTP_400' }]);
+          expect(await db.query('SELECT status FROM outbox_events WHERE id = $1',
+            [eventId])).toEqual([{ status: 'failed' }]);
+        } finally {
+          await worker.close();
+        }
+      });
+    });
+  });
+
+  it('retains a permanent failed job for reconciliation when the terminal DB write fails',
+    async () => {
+      await withBatch(async (batchId, tenantId, _productId, eventId) => {
+        let calls = 0;
+        const fake = createServer((_request, response) => {
+          calls++;
+          vi.spyOn(db, 'transaction').mockRejectedValueOnce(new Error('DB write unavailable'));
+          response.writeHead(400).end();
+        });
+        try {
+          await withServer(fake, async (endpoint) => {
+            const worker = createSyncWorker(process.env, new SyncBatchProcessor(db, endpoint));
+            try {
+              const job = await queue.getJob(syncBatchJobId(batchId));
+              const deadline = Date.now() + 5000;
+              while (Date.now() < deadline && await job?.getState() !== 'failed') {
+                await new Promise((resolve) => setTimeout(resolve, 25));
+              }
+              expect(await job?.getState()).toBe('failed');
+              expect(calls).toBe(1);
+              expect(await db.query('SELECT status FROM sync_batches WHERE id = $1',
+                [batchId])).toEqual([{ status: 'queued' }]);
+            } finally {
+              await worker.close();
+            }
+          });
+        } finally {
+          vi.restoreAllMocks();
+        }
+        expect(await new SyncBatchReconciler(db, queue).reconcile())
+          .toEqual({ publicationAttempts: 0, unresolved: [] });
+        expect(await db.query('SELECT status, last_error FROM sync_batches WHERE id = $1',
+          [batchId])).toEqual([{ status: 'failed', last_error: 'JOB_FAILED' }]);
+        expect(await db.query('SELECT status FROM outbox_events WHERE id = $1',
+          [eventId])).toEqual([{ status: 'failed' }]);
+      });
+    });
+
+  it('closes an exhausted reservation after restart without a sixth HTTP call', async () => {
+    await withBatch(async (batchId, tenantId, _productId, eventId) => {
+      await db.query('UPDATE sync_batches SET attempts_started = 5 WHERE id = $1', [batchId]);
+      const processor = new SyncBatchProcessor(db, 'http://127.0.0.1:1/batches');
+      await expect(processor.process({ batchId, tenantId }))
+        .rejects.toThrow('Sync attempt budget exhausted');
+      expect(await db.query(
+        'SELECT status, attempts_started, last_error FROM sync_batches WHERE id = $1',
+        [batchId],
+      )).toEqual([{ status: 'failed', attempts_started: 5,
+        last_error: 'ATTEMPT_BUDGET_EXHAUSTED' }]);
+      expect(await db.query('SELECT status FROM outbox_events WHERE id = $1',
+        [eventId])).toEqual([{ status: 'failed' }]);
+    });
+  });
+
+  it('fails the batch and events after five invalid ACKs without a sixth call', async () => {
     await withBatch(async (batchId, tenantId, _productId, eventId) => {
       const responses = [
         { batchId, acknowledgedEventIds: [] },
@@ -152,14 +265,14 @@ describe('sync batch processing over BullMQ, HTTP and PostgreSQL', () => {
             .rejects.toThrow('Invalid sync acknowledgement');
         }
         await expect(processor.process({ batchId, tenantId }))
-          .rejects.toThrow('Sync attempt budget exhausted');
+          .rejects.toThrow('Sync batch failed');
         expect(calls).toBe(5);
         expect(await db.query(
           'SELECT status, attempts_started, sent_at FROM sync_batches WHERE id = $1',
           [batchId],
-        )).toEqual([{ status: 'queued', attempts_started: 5, sent_at: null }]);
+        )).toEqual([{ status: 'failed', attempts_started: 5, sent_at: null }]);
         expect(await db.query('SELECT status FROM outbox_events WHERE batch_id = $1',
-          [batchId])).toEqual([{ status: 'pending' }]);
+          [batchId])).toEqual([{ status: 'failed' }]);
       });
     });
   });

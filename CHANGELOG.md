@@ -14,6 +14,10 @@
 
 ## Unreleased
 
+- `#add` Persist tenant-bound sync batches and link pending outbox events to their batch.
+- `#security` Reject outbox links to batches from another tenant through a composite foreign key.
+- `#test` Verify batch defaults, status and attempt checks, and tenant-safe outbox links in PostgreSQL.
+
 ## 0.5.0 — 2026-10-07
 
 Sales can now be registered atomically with stock audit and idempotent retries.

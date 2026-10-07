@@ -129,3 +129,46 @@ describe('GET /auth/me over HTTP and PostgreSQL', () => {
     expect((await me({ Cookie: `stocksync_token=${token}` })).status).toBe(401);
   });
 });
+
+describe('POST /auth/logout over HTTP', () => {
+  function logout(headers: Record<string, string> = {
+    Origin: origin, 'X-StockSync-Request': '1',
+  }) {
+    return fetch(`${baseUrl}/auth/logout`, { method: 'POST', headers });
+  }
+
+  it('clears the browser cookie without claiming to revoke the JWT', async () => {
+    const response = await logout({
+      Origin: origin, 'X-StockSync-Request': '1', Cookie: cookie,
+    });
+    expect(response.status).toBe(204);
+    expect(response.headers.get('set-cookie')).toBe(
+      'stocksync_token=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax',
+    );
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.text()).toBe('');
+    expect((await me({ Cookie: 'stocksync_token=' })).status).toBe(401);
+    expect((await me({ Cookie: cookie })).status).toBe(200);
+  });
+
+  it('also clears an absent or invalid session cookie', async () => {
+    for (const headers of [
+      { Origin: origin, 'X-StockSync-Request': '1' },
+      { Origin: origin, 'X-StockSync-Request': '1', Cookie: 'stocksync_token=invalid' },
+    ]) {
+      const response = await logout(headers);
+      expect(response.status).toBe(204);
+      expect(response.headers.get('set-cookie')).toContain('stocksync_token=; Max-Age=0; Path=/');
+    }
+  });
+
+  it.each([
+    ['missing Origin', { 'X-StockSync-Request': '1' }],
+    ['missing marker', { Origin: origin }],
+    ['wrong Origin', { Origin: 'https://attacker.test', 'X-StockSync-Request': '1' }],
+  ])('rejects %s before clearing the cookie', async (_case, headers) => {
+    const response = await logout(headers);
+    expect(response.status).toBe(403);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+});

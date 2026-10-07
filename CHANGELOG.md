@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Provide `POST /auth/logout` to expire the browser session cookie with a 204 response.
+- `#security` Apply browser write protection to logout and avoid claiming to revoke already issued JWTs.
+- `#test` Cover logout, missing or invalid cookies, CSRF rejection and production cookie attributes.
 - `#add` Restore the current user identity through `GET /auth/me` using the HttpOnly session cookie.
 - `#security` Reject missing, invalid, expired, duplicate, inactive and unknown-user sessions; read current tenant and role from PostgreSQL.
 - `#test` Verify session restoration and rejection over HTTP with PostgreSQL.

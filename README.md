@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, and session inspection. Logout, business endpoints, and the web interface are planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, and logout. Business endpoints and the web interface are planned.
 
 ## Technologies
 
@@ -54,6 +54,8 @@ All four accounts use the demo password `StockSyncDemo123!`, stored as an Argon2
 `POST /auth/login` accepts JSON `email` and `password` with literal email matching. It requires `Origin: http://localhost:5173` and `X-StockSync-Request: 1` with the example configuration. Successful login returns the current identity and sets `stocksync_token`. The login route allows five requests per literal email and thirty requests per IP in fifteen minutes, counting successful and failed logins. Excess requests return `429` with `Retry-After`; the email pause is a fixed 30 seconds. The limiter is local to one API process. A browser frontend will use a same-origin `/api` proxy so `SameSite=Lax` can send the cookie.
 
 `GET /auth/me` reads `stocksync_token` from the `Cookie` request header and returns the active user's current identity. Missing or invalid sessions receive `401`; the JWT is never returned in the JSON response.
+
+`POST /auth/logout` clears the browser cookie and returns `204`, including when the cookie is missing or invalid. It requires the configured `Origin` and `X-StockSync-Request: 1`. Logout does not revoke a previously copied JWT; that token remains usable until it expires.
 
 ## Run checks
 

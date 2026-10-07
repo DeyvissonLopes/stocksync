@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Store sync jobs in BullMQ's PostgreSQL backend after an explicit schema migration.
+- `#add` Publish one stable job per persisted batch and mark it queued after publication.
+- `#test` Verify queue migration, job persistence across connections, duplicate publication and terminal batch protection.
 - `#add` Choose the oldest available tenant and form its sync batch in one transaction.
 - `#test` Verify tenant selection and progress while an older tenant event is locked.
 - `#docs` Select BullMQ with PostgreSQL as the planned sync queue backend.

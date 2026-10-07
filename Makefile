@@ -18,6 +18,7 @@ setup: .env $(API_ARTIFACT_DIRS)
 	docker compose build api
 	docker compose run --rm api npm ci --include=dev
 	docker compose run --rm api npm run migration:run
+	docker compose run --rm api npm run sync:queue:migrate
 	docker compose run --rm api npm run seed:run
 	docker compose up --wait --wait-timeout 60 --detach
 

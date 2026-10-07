@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Assign up to 50 pending product snapshots from one tenant to a durable sync batch in one transaction.
+- `#test` Verify ordered batch size, tenant isolation, eligible events and concurrent claims over PostgreSQL.
 - `#add` Persist tenant-bound sync batches and link pending outbox events to their batch.
 - `#security` Reject outbox links to batches from another tenant through a composite foreign key.
 - `#test` Verify batch defaults, status and attempt checks, and tenant-safe outbox links in PostgreSQL.

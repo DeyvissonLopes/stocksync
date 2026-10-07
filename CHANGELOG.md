@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` List active tenant products in fixed pages of 10 with name and zero-stock filters.
+- `#security` Apply the session tenant to both product rows and pagination totals; reject tenant-selecting query parameters.
+- `#test` Cover pagination, isolation, archived rows, filters and invalid input over HTTP and PostgreSQL.
 - `#add` Read active product details through authenticated `GET /products/:id`, with decimal price and string version.
 - `#security` Scope product lookup to the session tenant and return 404 for foreign or archived products.
 - `#test` Verify product access, tenant isolation and session rejection over HTTP and PostgreSQL.

@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Validate and normalize sale intents, then hash the canonical items and authenticated actor for future idempotent retries.
+- `#test` Cover equivalent item order, repeated products, actor changes and invalid sale input before the sales endpoint is connected.
 - `#add` Prepare tenant-bound sales and sale items with a unique idempotency key per tenant and captured unit prices.
 - `#security` Require matching tenant links for the sale actor, items and stock movements; allow one sale movement per item.
 - `#test` Verify sales schema uniqueness, value checks and cross-tenant rejection in PostgreSQL.

@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Run the sync worker as an optional Compose service with an explicit destination URL and graceful shutdown.
+- `#test` Verify process startup validation and completion of an active batch before SIGTERM exit.
 - `#add` Pace sync HTTP calls across tenants and honor `Retry-After` for 429 retries and later batches.
 - `#test` Verify rolling-window send cadence and cross-tenant 429 cooldown with BullMQ, PostgreSQL and HTTP.
 - `#add` Retry transient sync failures with bounded exponential backoff and persist terminal batch/event failures, including reconciliation after a worker crash.

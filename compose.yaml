@@ -80,6 +80,24 @@ services:
     command: ["node", "dist/sync/run-dispatcher.js"]
     stop_grace_period: 30s
 
+  worker:
+    profiles: [sync]
+    build:
+      context: ./apps/api
+    env_file:
+      - path: ./apps/api/.env.example
+      - path: ./apps/api/.env
+        required: false
+    environment:
+      DB_PORT: ${DB_PORT:?Set DB_PORT in apps/api/.env}
+    depends_on:
+      db:
+        condition: service_healthy
+      sync-mock:
+        condition: service_healthy
+    command: ["node", "dist/sync/run-worker.js"]
+    stop_grace_period: 30s
+
   sync-mock:
     profiles: [sync]
     build:

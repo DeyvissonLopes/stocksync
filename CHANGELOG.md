@@ -14,6 +14,10 @@
 
 ## Unreleased
 
+## 0.5.0 — 2026-10-07
+
+Sales can now be registered atomically with stock audit and idempotent retries.
+
 - `#test` Prove overlapping sales cannot oversell stock and simultaneous retries with one key create only one sale, movement and outbox event.
 - `#add` Register multi-item sales with captured prices, stock movements and pending outbox snapshots in one transaction.
 - `#security` Scope sales to the authenticated tenant and actor; reject missing, foreign and archived products without exposing another tenant.

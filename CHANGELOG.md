@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Run an internal HTTP sync mock with durable tenant/product versions and exact batch event ACKs.
+- `#change` Reject conflicting same-version payloads and requests above five calls per moving second; provide deterministic and demo failure modes.
+- `#test` Verify duplicate and stale delivery, transaction rollback, concurrent writes, tenant isolation, restart persistence and controlled failures over HTTP and PostgreSQL.
 - `#add` Run the sync dispatcher in an optional separate Compose process with sequential polling and graceful shutdown.
 - `#test` Verify no overlapping rounds, retry after a failed round and shutdown during active work.
 - `#add` Run one sync dispatcher round that reconciles existing batches before forming and publishing the next.

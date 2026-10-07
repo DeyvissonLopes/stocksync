@@ -2,7 +2,7 @@
 API_ARTIFACT_DIRS := apps/api/node_modules apps/api/dist apps/api/.test-build
 CHECK_VOLUMES := -v /app/apps/api/node_modules -v /app/apps/api/dist -v /app/apps/api/.test-build
 
-.PHONY: help setup setup-local build up sync-dispatcher test check down
+.PHONY: help setup setup-local build up sync-dispatcher sync-mock test check down
 
 help:
 	@printf 'StockSync commands:\n'
@@ -11,6 +11,7 @@ help:
 	@printf '  make build  Rebuild the API image.\n'
 	@printf '  make up     Start the API with Docker Compose.\n'
 	@printf '  make sync-dispatcher  Start the optional sync dispatcher.\n'
+	@printf '  make sync-mock  Start the internal external-service simulator.\n'
 	@printf '  make test   Run the tests in a temporary container.\n'
 	@printf '  make check  Run types, lint, tests and build in a temporary container.\n'
 	@printf '  make down   Stop and remove the Compose services and network.\n'
@@ -55,6 +56,9 @@ up: .env $(API_ARTIFACT_DIRS)
 
 sync-dispatcher: .env
 	docker compose --profile sync up --build --detach dispatcher
+
+sync-mock: .env
+	docker compose --profile sync up --build --detach sync-mock
 
 test: .env $(API_ARTIFACT_DIRS)
 	@set -e; \

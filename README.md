@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. An optional dispatcher process reconciles existing sync batches, then forms and publishes new batches through BullMQ in PostgreSQL. No sync worker or external delivery runs yet. The web interface is planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. An optional dispatcher process reconciles existing sync batches, then forms and publishes new batches through BullMQ in PostgreSQL. An internal HTTP mock can receive versioned batches; no sync worker or automatic external delivery runs yet. The web interface is planned.
 
 ## Technologies
 
@@ -29,6 +29,25 @@ API: http://127.0.0.1:3000. Local Node.js/npm are optional.
 
 After setup, run `make sync-dispatcher` to start the optional sync dispatcher
 as a separate container. It publishes jobs but no worker processes them yet.
+Run `make sync-mock` to start the external-service simulator. It has no host
+port; the future worker will reach it at `http://sync-mock:3001/batches` on the
+Compose network. `GET /health` reports process health. The mock accepts
+`POST /batches` with `batchId`, `tenantId` and one to 50 updates containing
+`eventId`, `productId`, `sku`, `stock`, decimal-string `price` and decimal-string
+`version`. A successful response returns the batch ID and every event ID in
+`acknowledgedEventIds`. It preserves only the newest version of each
+tenant/product in the separate `mock_sync` schema. Repeated or older versions
+are acknowledged without changing that state; conflicting values at the same
+version return `409` and roll back the batch.
+
+The mock rejects more than five calls in a moving second with `429` and
+`Retry-After`. Set `MOCK_SYNC_FAILURE_MODE=demo` in `apps/api/.env` for about
+10% simulated errors and 10% timeouts, half of which occur after applying the
+batch. The default `off` mode is stable; tests inject deterministic outcomes.
+The mock's version and ACK fields are additions under our control. A real
+external service limited to `sku`, `stock` and `price` would need a compatible
+ordering contract to guarantee that late old updates cannot overwrite newer
+ones. The mock uses one process; its request counter is in memory.
 `make down` stops it along with the other services.
 
 Setup applies the application migrations and the separate BullMQ schema migration.

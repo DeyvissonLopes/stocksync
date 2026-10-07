@@ -40,9 +40,9 @@ Edit `apps/api/.env` to configure the development and test databases. Setup crea
 
 `JWT_SECRET` signs identity tokens. The example value is only for local development and is rejected in production; use a random secret of at least 32 bytes for deployment. The login endpoint issues the token in an HttpOnly cookie.
 
-## Demo tenants and users
+## Demo tenants, users and products
 
-Setup applies the identity migration and seeds two tenants, each with an admin and an operator:
+Setup applies the migrations and seeds two tenants, each with an admin and an operator:
 
 | Tenant | Admin | Operator |
 | --- | --- | --- |
@@ -50,6 +50,8 @@ Setup applies the identity migration and seeds two tenants, each with an admin a
 | `beta` | `admin@beta.stocksync.test` | `operator@beta.stocksync.test` |
 
 All four accounts use the demo password `StockSyncDemo123!`, stored as an Argon2id hash.
+
+Setup also seeds three products per tenant. Alpha has Blue Mug, A5 Notebook and Black Pen; beta has Tote Bag, Red Mug and Blue Pen. Each tenant has a zero-stock pen. The `DEMO-CAN` and `DEMO-PEN` SKUs exist in both tenants to demonstrate isolation. Re-running `make setup` adds missing demo products without overwriting products that were edited or archived.
 
 `POST /auth/login` accepts JSON `email` and `password` with literal email matching. It requires `Origin: http://localhost:5173` and `X-StockSync-Request: 1` with the example configuration. Successful login returns the current identity and sets `stocksync_token`. The login route allows five requests per literal email and thirty requests per IP in fifteen minutes, counting successful and failed logins. Excess requests return `429` with `Retry-After`; the email pause is a fixed 30 seconds. The limiter is local to one API process. A browser frontend will use a same-origin `/api` proxy so `SameSite=Lax` can send the cookie.
 
@@ -59,7 +61,7 @@ All four accounts use the demo password `StockSyncDemo123!`, stored as an Argon2
 
 `GET /products/:id` requires the session cookie and returns only an active product from the user's tenant. It returns `404` for an absent, archived, or other-tenant product. The response uses a decimal string for `price` and a string for `version` to preserve bigint precision.
 
-`GET /products` also requires the session cookie. It accepts `page` (starting at 1, default 1), `name` (case-insensitive literal substring) and `zeroStock=true`; unknown or invalid query parameters return `400`. Pages contain up to 10 active products from the current tenant, ordered by creation date and ID descending. The response has `products` and `pagination: { page, pageSize, total, totalPages }`; an empty catalog has `totalPages: 0`. Setup currently seeds users but no products, so the catalog starts empty.
+`GET /products` also requires the session cookie. It accepts `page` (starting at 1, default 1), `name` (case-insensitive literal substring) and `zeroStock=true`; unknown or invalid query parameters return `400`. Pages contain up to 10 active products from the current tenant, ordered by creation date and ID descending. The response has `products` and `pagination: { page, pageSize, total, totalPages }`; an empty catalog has `totalPages: 0`.
 
 ## Run checks
 

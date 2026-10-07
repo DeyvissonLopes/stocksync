@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Seed six demo products across the alpha and beta tenants, including shared SKUs and zero-stock examples.
+- `#test` Verify product seed idempotence and preservation of edited or archived products.
 - `#add` List active tenant products in fixed pages of 10 with name and zero-stock filters.
 - `#security` Apply the session tenant to both product rows and pagination totals; reject tenant-selecting query parameters.
 - `#test` Cover pagination, isolation, archived rows, filters and invalid input over HTTP and PostgreSQL.

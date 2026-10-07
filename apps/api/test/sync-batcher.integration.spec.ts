@@ -62,6 +62,66 @@ async function events(tenantId: string, productId: string, count: number) {
 }
 
 describe('sync batch assignment over PostgreSQL', () => {
+  it('chooses the tenant of the oldest pending event, then the next tenant',
+    async () => withFixture(async ({ tenantA, tenantB, productA, productB }) => {
+      expect(await batcher.createNext()).toBeNull();
+      const a = await events(tenantA, productA, 2);
+      const b = await events(tenantB, productB, 1);
+      await db.query('UPDATE outbox_events SET created_at = $1 WHERE id = $2',
+        ['2000-01-01T00:00:00.000Z', a[0]!.id]);
+      await db.query('UPDATE outbox_events SET created_at = $1 WHERE id = $2',
+        ['2000-01-01T00:00:00.001Z', b[0]!.id]);
+      await db.query('UPDATE outbox_events SET created_at = $1 WHERE id = $2',
+        ['2000-01-01T00:00:00.002Z', a[1]!.id]);
+
+      const first = await batcher.createNext();
+      expect(first).toMatchObject({ tenantId: tenantA,
+        eventIds: [a[0]!.id, a[1]!.id] });
+      const second = await batcher.createNext();
+      expect(second).toMatchObject({ tenantId: tenantB, eventIds: [b[0]!.id] });
+      expect(await batcher.createNext()).toBeNull();
+      expect(await db.query('SELECT tenant_id, id FROM sync_batches WHERE id IN ($1, $2)',
+        [first!.id, second!.id])).toEqual(expect.arrayContaining([
+        { tenant_id: tenantA, id: first!.id },
+        { tenant_id: tenantB, id: second!.id },
+      ]));
+    }));
+
+  it('can choose another tenant while the oldest event is locked',
+    async () => withFixture(async ({ tenantA, tenantB, productA, productB }) => {
+      const a = (await events(tenantA, productA, 1))[0]!;
+      const b = (await events(tenantB, productB, 1))[0]!;
+      await db.query('UPDATE outbox_events SET created_at = $1 WHERE id = $2',
+        ['2000-01-01T00:00:00.000Z', a.id]);
+      await db.query('UPDATE outbox_events SET created_at = $1 WHERE id = $2',
+        ['2000-01-01T00:00:00.001Z', b.id]);
+
+      const locker: QueryRunner = db.createQueryRunner();
+      await locker.connect();
+      await locker.startTransaction();
+      await locker.query('SELECT id FROM outbox_events WHERE id = $1 FOR UPDATE', [a.id]);
+      const claim = batcher.createNext();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const result = await Promise.race([
+          claim,
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => reject(new Error('Dispatcher waited on lock')), 2000);
+          }),
+        ]);
+        expect(result).toMatchObject({ tenantId: tenantB, eventIds: [b.id] });
+        expect(await batcher.createNext()).toBeNull();
+      } finally {
+        clearTimeout(timeout);
+        await locker.rollbackTransaction();
+        await locker.release();
+        await claim.catch(() => undefined);
+      }
+      expect(await batcher.createNext()).toMatchObject({
+        tenantId: tenantA, eventIds: [a.id],
+      });
+    }));
+
   it('claims at most 50 ordered pending events from one tenant, then leaves no empty batch',
     async () => withFixture(async ({ tenantA, tenantB, productA, productB }) => {
       expect(await batcher.createForTenant(tenantA)).toBeNull();

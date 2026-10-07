@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#add` Choose the oldest available tenant and form its sync batch in one transaction.
+- `#test` Verify tenant selection and progress while an older tenant event is locked.
+- `#docs` Select BullMQ with PostgreSQL as the planned sync queue backend.
 - `#add` Assign up to 50 pending product snapshots from one tenant to a durable sync batch in one transaction.
 - `#test` Verify ordered batch size, tenant isolation, eligible events and concurrent claims over PostgreSQL.
 - `#add` Persist tenant-bound sync batches and link pending outbox events to their batch.

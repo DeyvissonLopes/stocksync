@@ -14,6 +14,22 @@
 
 ## Unreleased
 
+## 0.5.0 — 2026-10-07
+
+Sales can now be registered atomically with stock audit and idempotent retries.
+
+- `#test` Prove overlapping sales cannot oversell stock and simultaneous retries with one key create only one sale, movement and outbox event.
+- `#add` Register multi-item sales with captured prices, stock movements and pending outbox snapshots in one transaction.
+- `#security` Scope sales to the authenticated tenant and actor; reject missing, foreign and archived products without exposing another tenant.
+- `#fix` Replay the same sale key without another debit and reject a reused key with different intent as 409.
+- `#test` Verify sale commit, rollback, replay, key conflict, tenant isolation, browser protection and invalid input over HTTP and PostgreSQL.
+- `#add` Validate and normalize sale intents, then hash the canonical items and authenticated actor for future idempotent retries.
+- `#test` Cover equivalent item order, repeated products, actor changes and invalid sale input before the sales endpoint is connected.
+- `#add` Prepare tenant-bound sales and sale items with a unique idempotency key per tenant and captured unit prices.
+- `#security` Require matching tenant links for the sale actor, items and stock movements; allow one sale movement per item.
+- `#test` Verify sales schema uniqueness, value checks and cross-tenant rejection in PostgreSQL.
+- `#test` Explicitly verify that PostgreSQL rejects negative product stock on update and negative movement balances.
+
 ## 0.4.0 — 2026-10-07
 
 Product catalog and stock audit API are available.

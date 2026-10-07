@@ -65,6 +65,11 @@ describe('product schema', () => {
       await rejected(() => product(tenantA));
       await rejected(() => product(randomUUID(), 'ORPHAN'));
       await rejected(() => product(tenantA, 'NEGATIVE-STOCK', 1990, -1));
+      await rejected(() => manager.query(
+        'UPDATE products SET stock = -1 WHERE id = $1', [rowsA[0]!.id],
+      ));
+      expect(await manager.query('SELECT stock FROM products WHERE id = $1',
+        [rowsA[0]!.id])).toEqual([{ stock: 3 }]);
       await rejected(() => product(tenantA, 'NEGATIVE-PRICE', -1, 3));
       await rejected(() => manager.query(
         `INSERT INTO products (tenant_id, sku, name, price_cents, stock, version)

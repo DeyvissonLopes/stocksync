@@ -14,6 +14,7 @@
 
 ## Unreleased
 
+- `#test` Prove overlapping sales cannot oversell stock and simultaneous retries with one key create only one sale, movement and outbox event.
 - `#add` Register multi-item sales with captured prices, stock movements and pending outbox snapshots in one transaction.
 - `#security` Scope sales to the authenticated tenant and actor; reject missing, foreign and archived products without exposing another tenant.
 - `#fix` Replay the same sale key without another debit and reject a reused key with different intent as 409.

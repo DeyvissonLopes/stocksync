@@ -63,6 +63,21 @@ function submit(items: unknown, key: string = randomUUID(), cookie = adminCookie
   });
 }
 
+async function waitForBlockedSales(updates: number, inserts: number): Promise<void> {
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    const rows: Array<{ query: string }> = await db.query(`
+      SELECT query FROM pg_stat_activity
+      WHERE datname = current_database() AND wait_event_type = 'Lock'
+    `);
+    const blockedUpdates = rows.filter((row) => row.query.includes('UPDATE products')).length;
+    const blockedInserts = rows.filter((row) => row.query.includes('INSERT INTO sales')).length;
+    if (blockedUpdates >= updates && blockedInserts >= inserts) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Expected ${updates} blocked stock updates and ${inserts} blocked sale inserts`);
+}
+
 beforeAll(async () => {
   db = await new DataSource(loadDatabaseOptions(process.env)).initialize();
   await db.runMigrations();
@@ -237,4 +252,85 @@ describe('POST /sales over HTTP and PostgreSQL', () => {
     expect(await db.query('SELECT stock FROM products WHERE id = $1', [a]))
       .toEqual([{ stock: 5 }]);
   });
+
+  it('allows only one of two overlapping sales to consume the remaining stock', async () => {
+    const id = await product(tenantA, 5);
+    const keys = [randomUUID(), randomUUID()] as const;
+    const locker = db.createQueryRunner();
+    await locker.connect();
+    let requests: Promise<Response>[] = [];
+    let barrierError: unknown;
+    try {
+      await locker.startTransaction();
+      await locker.query('SELECT id FROM products WHERE id = $1 FOR UPDATE', [id]);
+      requests = [
+        submit([{ productId: id, quantity: 3 }], keys[0]),
+        submit([{ productId: id, quantity: 3 }], keys[1]),
+      ];
+      await waitForBlockedSales(2, 0);
+    } catch (error) {
+      barrierError = error;
+    } finally {
+      if (locker.isTransactionActive) await locker.rollbackTransaction();
+      await locker.release();
+    }
+    const settled = await Promise.allSettled(requests);
+    if (barrierError) throw barrierError;
+    const responses = settled.map((result) => {
+      if (result.status === 'rejected') throw result.reason;
+      return result.value;
+    });
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+    expect(await responses.find((response) => response.status === 409)!.json())
+      .toMatchObject({ code: 'INSUFFICIENT_STOCK' });
+    expect(await db.query('SELECT stock, version FROM products WHERE id = $1', [id]))
+      .toEqual([{ stock: 2, version: '2' }]);
+    expect(await db.query('SELECT count(*)::int AS n FROM sales WHERE tenant_id = $1 AND idempotency_key IN ($2, $3)',
+      [tenantA, ...keys])).toEqual([{ n: 1 }]);
+    expect(await db.query('SELECT count(*)::int AS n FROM sale_items WHERE product_id = $1',
+      [id])).toEqual([{ n: 1 }]);
+    expect(await db.query('SELECT count(*)::int AS n FROM stock_movements WHERE product_id = $1',
+      [id])).toEqual([{ n: 1 }]);
+    expect(await db.query('SELECT count(*)::int AS n FROM outbox_events WHERE product_id = $1',
+      [id])).toEqual([{ n: 1 }]);
+  }, 15000);
+
+  it('serializes simultaneous retries with the same key into one sale', async () => {
+    const id = await product(tenantA, 5);
+    const key = randomUUID();
+    const locker = db.createQueryRunner();
+    await locker.connect();
+    const requests: Promise<Response>[] = [];
+    let barrierError: unknown;
+    try {
+      await locker.startTransaction();
+      await locker.query('SELECT id FROM products WHERE id = $1 FOR UPDATE', [id]);
+      requests.push(submit([{ productId: id, quantity: 2 }], key));
+      await waitForBlockedSales(1, 0);
+      requests.push(submit([{ productId: id, quantity: 2 }], key));
+      await waitForBlockedSales(1, 1);
+    } catch (error) {
+      barrierError = error;
+    } finally {
+      if (locker.isTransactionActive) await locker.rollbackTransaction();
+      await locker.release();
+    }
+    const settled = await Promise.allSettled(requests);
+    if (barrierError) throw barrierError;
+    const responses = settled.map((result) => {
+      if (result.status === 'rejected') throw result.reason;
+      return result.value;
+    });
+    expect(responses.map((response) => response.status)).toEqual([201, 201]);
+    const [firstBody, secondBody] = await Promise.all(responses.map((response) => response.json()));
+    expect(secondBody).toEqual(firstBody);
+    expect(await db.query('SELECT stock, version FROM products WHERE id = $1', [id]))
+      .toEqual([{ stock: 3, version: '2' }]);
+    expect(await db.query('SELECT count(*)::int AS n FROM sales WHERE tenant_id = $1 AND idempotency_key = $2',
+      [tenantA, key])).toEqual([{ n: 1 }]);
+    expect(await db.query('SELECT count(*)::int AS n FROM stock_movements WHERE product_id = $1',
+      [id])).toEqual([{ n: 1 }]);
+    expect(await db.query('SELECT count(*)::int AS n FROM outbox_events WHERE product_id = $1',
+      [id])).toEqual([{ n: 1 }]);
+  }, 15000);
 });

@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Consume sync batch jobs through a BullMQ worker processor that sends immutable outbox snapshots and records complete ACKs atomically.
+- `#test` Verify real queue consumption, tenant mismatch rejection, snapshot delivery, ACK validation, replay safety and durable attempt reservation over PostgreSQL and HTTP.
 - `#add` Run an internal HTTP sync mock with durable tenant/product versions and exact batch event ACKs.
 - `#change` Reject conflicting same-version payloads and requests above five calls per moving second; provide deterministic and demo failure modes.
 - `#test` Verify duplicate and stale delivery, transaction rollback, concurrent writes, tenant isolation, restart persistence and controlled failures over HTTP and PostgreSQL.

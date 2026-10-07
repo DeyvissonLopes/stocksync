@@ -1,6 +1,7 @@
-import { Queue, createPostgresBackend, runMigrations } from 'bullmq';
+import { Queue, Worker, createPostgresBackend, runMigrations } from 'bullmq';
 import { Pool } from 'pg';
 import { loadDatabaseOptions } from '../database/database-options.js';
+import type { SyncBatchProcessor } from './sync-batch-processor.js';
 
 export const SYNC_QUEUE_NAME = 'product-sync';
 export const syncBatchJobId = (batchId: string): string => `batch-${batchId}`;
@@ -25,6 +26,14 @@ function connection(env: NodeJS.ProcessEnv) {
 
 export function createSyncQueue(env: NodeJS.ProcessEnv) {
   return new Queue(SYNC_QUEUE_NAME, { connection: connection(env) }, createPostgresBackend);
+}
+
+export function createSyncWorker(env: NodeJS.ProcessEnv, processor: SyncBatchProcessor) {
+  return new Worker(SYNC_QUEUE_NAME, (job) => {
+    if (job.name !== 'sync-batch') throw new Error('Invalid sync job type');
+    return processor.process(job.data);
+  },
+    { connection: connection(env), concurrency: 1 }, createPostgresBackend);
 }
 
 export async function migrateSyncQueue(env: NodeJS.ProcessEnv): Promise<void> {

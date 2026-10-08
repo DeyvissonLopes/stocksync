@@ -25,10 +25,10 @@ With Docker Engine, Docker Compose v2.24+ and Make installed, run from the proje
 make setup
 ```
 
-Web: http://localhost:5173. API: http://127.0.0.1:3000. Local Node.js/npm are optional.
+Web: http://127.0.0.1:5173. API: http://127.0.0.1:3000. Local Node.js/npm are optional.
 The Vite server forwards browser requests from `/api/*` to the matching Nest
 route. The browser uses one origin, so its HttpOnly session cookie works with
-the API and the configured `APP_ORIGIN=http://localhost:5173`.
+the API and the configured `APP_ORIGIN=http://127.0.0.1:5173`.
 
 After setup, run `make sync-dispatcher` and `make sync-worker` to start the
 optional sync pipeline. The worker target also starts the internal HTTP mock.
@@ -95,6 +95,9 @@ make down
 Edit `apps/api/.env` to configure the development and test databases. Setup creates it from `apps/api/.env.example` if it does not exist. PostgreSQL uses `127.0.0.1:5432` by default. If that port is occupied, set `DB_PORT` to a free port before running setup.
 
 `APP_ORIGIN` is the exact browser origin allowed to make write requests. The example uses the planned local Vite origin; set it to the actual frontend origin when that server is introduced. Production requires an HTTPS origin. Browser writes require `X-StockSync-Request: 1` and JSON bodies when a body is sent.
+If an existing `apps/api/.env` sets `APP_ORIGIN` to `http://localhost:5173`,
+change it to `http://127.0.0.1:5173` and restart the API before opening the
+web app at the new URL.
 
 `JWT_SECRET` signs identity tokens. The example value is only for local development and is rejected in production; use a random secret of at least 32 bytes for deployment. The login endpoint issues the token in an HttpOnly cookie.
 
@@ -111,7 +114,7 @@ All four accounts use the demo password `StockSyncDemo123!`, stored as an Argon2
 
 Setup also seeds three products per tenant. Alpha has Blue Mug, A5 Notebook and Black Pen; beta has Tote Bag, Red Mug and Blue Pen. Each tenant has a zero-stock pen. The `DEMO-CAN` and `DEMO-PEN` SKUs exist in both tenants to demonstrate isolation. Re-running `make setup` adds missing demo products without overwriting products that were edited or archived. It records an opening-balance movement for each demo product with positive stock and one pending outbox snapshot per product, including zero-stock products.
 
-`POST /auth/login` accepts JSON `email` and `password` with literal email matching. It requires `Origin: http://localhost:5173` and `X-StockSync-Request: 1` with the example configuration. Successful login returns the current identity and sets `stocksync_token`. The login route allows five requests per literal email and thirty requests per IP in fifteen minutes, counting successful and failed logins. Excess requests return `429` with `Retry-After`; the email pause is a fixed 30 seconds. The limiter is local to one API process. The web app uses a same-origin `/api` proxy so `SameSite=Lax` can send the cookie.
+`POST /auth/login` accepts JSON `email` and `password` with literal email matching. It requires `Origin: http://127.0.0.1:5173` and `X-StockSync-Request: 1` with the example configuration. Successful login returns the current identity and sets `stocksync_token`. The login route allows five requests per literal email and thirty requests per IP in fifteen minutes, counting successful and failed logins. Excess requests return `429` with `Retry-After`; the email pause is a fixed 30 seconds. The limiter is local to one API process. The web app uses a same-origin `/api` proxy so `SameSite=Lax` can send the cookie.
 
 `GET /auth/me` reads `stocksync_token` from the `Cookie` request header and returns the active user's current identity. Missing or invalid sessions receive `401`; the JWT is never returned in the JSON response.
 

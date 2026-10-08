@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#fix` Use `127.0.0.1` consistently for the local web origin and API access.
+
 ## 0.6.0 — 2026-10-08
 
 Product updates now sync asynchronously through tenant batches, a PostgreSQL-backed queue and a version-aware external-service mock.

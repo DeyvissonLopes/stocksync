@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { APP_CONFIG } from '../src/config/app-config.js';
 import { BrowserSecurityModule } from '../src/security/browser-security.module.js';
 
-const allowedOrigin = 'http://localhost:5173';
+const allowedOrigin = 'http://127.0.0.1:5173';
 let writes = 0;
 let app: INestApplication;
 let baseUrl: string;
@@ -66,6 +66,7 @@ describe('browser write protection over HTTP', () => {
   });
 
   it.each([
+    ['other loopback hostname', { Origin: 'http://localhost:5173', 'X-StockSync-Request': '1', 'Content-Type': 'application/json' }],
     ['external origin', { Origin: 'https://attacker.test', 'X-StockSync-Request': '1', 'Content-Type': 'application/json' }],
     ['deceptive prefix', { Origin: `${allowedOrigin}.attacker.test`, 'X-StockSync-Request': '1', 'Content-Type': 'application/json' }],
     ['null origin', { Origin: 'null', 'X-StockSync-Request': '1', 'Content-Type': 'application/json' }],

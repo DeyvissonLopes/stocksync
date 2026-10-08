@@ -32,7 +32,7 @@ describe('JWT identity token', () => {
     const module = await Test.createTestingModule({ imports: [AuthTokenModule] })
       .overrideProvider(APP_CONFIG).useValue({
         nodeEnv: 'test', port: 3000, listenHost: '127.0.0.1',
-        appOrigin: 'http://localhost:5173', jwtSecret: secret,
+        appOrigin: 'http://127.0.0.1:5173', jwtSecret: secret,
       }).compile();
     try {
       const token = module.get(AuthTokenService).issue(userId);

@@ -12,7 +12,7 @@ import { loadDatabaseOptions } from '../src/database/database-options.js';
 
 const testConfig = {
   nodeEnv: 'test', port: 3000, listenHost: '127.0.0.1',
-  appOrigin: 'http://localhost:5173',
+  appOrigin: 'http://127.0.0.1:5173',
   jwtSecret: 'sync-status-test-secret-with-at-least-thirty-two-bytes',
 };
 

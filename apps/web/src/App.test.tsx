@@ -1,0 +1,347 @@
+// @vitest-environment jsdom
+import { StrictMode } from 'react';
+import '@testing-library/jest-dom/vitest';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { App } from './App';
+
+const identity = {
+  userId: '9b8ef3e1-a27c-4410-8463-74c9f8a68738',
+  tenantId: '0562aa57-3d45-42e6-8549-28549fdb3aa3',
+  role: 'admin',
+};
+const emptyProductsResponse = () => new Response(JSON.stringify({
+  products: [], pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+}), { status: 200 });
+
+beforeEach(() => {
+  vi.stubGlobal('scrollTo', vi.fn());
+});
+
+afterEach(() => {
+  cleanup();
+  sessionStorage.clear();
+  vi.unstubAllGlobals();
+});
+
+async function submitLogin() {
+  const user = userEvent.setup();
+  await user.type(await screen.findByRole('textbox', { name: 'Email' }), 'admin@example.com');
+  await user.type(screen.getByLabelText('Password'), 'secret-password');
+  await user.click(screen.getByRole('button', { name: 'Sign in' }));
+}
+
+describe('login screen', () => {
+  it('sends credentials through the same-origin API and shows the returned identity', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(emptyProductsResponse());
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await submitLogin();
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/login', expect.objectContaining({
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-StockSync-Request': '1' },
+      body: JSON.stringify({ email: 'admin@example.com', password: 'secret-password' }),
+    }));
+    expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+    expect(screen.getByText('admin')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+  });
+
+  it('shows a generic error for invalid credentials without exposing the API response', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(
+        JSON.stringify({ message: 'Internal credential detail' }), { status: 401 },
+      ));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await submitLogin();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect email or password.');
+    expect(screen.queryByText('Internal credential detail')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled();
+  });
+
+  it('explains when the API limits sign-in attempts', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 429 })));
+
+    render(<App />);
+    await submitLogin();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Too many sign-in attempts. Try again shortly.',
+    );
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled();
+  });
+
+  it('shows a retryable error when the request cannot reach the API', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await submitLogin();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not sign in. Try again.');
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled();
+  });
+
+  it('prevents a second submission while the first request is pending', async () => {
+    let resolveRequest!: (response: Response) => void;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockReturnValueOnce(new Promise<Response>((resolve) => {
+        resolveRequest = resolve;
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await submitLogin();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Signing in…' })).toBeDisabled());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    resolveRequest(new Response(JSON.stringify({ user: identity }), { status: 200 }));
+    expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+  });
+});
+
+describe('session lifecycle', () => {
+  it('reopens an uncertain sale after restoring the same user session', async () => {
+    sessionStorage.setItem(`stocksync:sale-intent:${identity.tenantId}:${identity.userId}`, JSON.stringify({
+      key: 'a8b25d95-3a26-4290-a02e-c8f674940000',
+      items: [{ product: {
+        id: '9e588a34-7217-4d5b-a97a-c627ff6f4e48',
+        name: 'Blue Mug', sku: 'DEMO-CAN', price: '29.90', stock: 8, version: '1',
+      }, quantity: 2 }],
+    }));
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(emptyProductsResponse()));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'New sale' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Sale status unknown');
+    expect(screen.queryByRole('heading', { name: 'Inventory dashboard' })).not.toBeInTheDocument();
+  });
+
+  it('navigates between the product dashboard and the sale screen', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockImplementation(() => Promise.resolve(emptyProductsResponse())));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Sales' }));
+    expect(await screen.findByRole('heading', { name: 'New sale' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Inventory dashboard' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Products' }));
+    expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+  });
+
+  it('opens the tenant sync status from the authenticated navigation', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(emptyProductsResponse())
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        pending: 2, sent: 1, failed: 0, lastSuccessfulSync: null,
+      }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Inventory dashboard' });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Sync' }));
+
+    expect(await screen.findByRole('heading', { name: 'Sync status' })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/sync/status', expect.objectContaining({
+      credentials: 'same-origin', signal: expect.any(AbortSignal),
+    }));
+  });
+
+  it('moves from login through products and a sale to the latest sync status', async () => {
+    const product = {
+      id: '9e588a34-7217-4d5b-a97a-c627ff6f4e48',
+      name: 'Blue Mug', sku: 'DEMO-CAN', price: '29.90', stock: 8, version: '1',
+    };
+    const key = 'a8b25d95-3a26-4290-a02e-c8f674940000';
+    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValue(key) });
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/auth/me') return Promise.resolve(new Response(null, { status: 401 }));
+      if (url === '/api/auth/login') return Promise.resolve(new Response(JSON.stringify({ user: identity }), { status: 200 }));
+      if (url.startsWith('/api/products?')) return Promise.resolve(new Response(JSON.stringify({
+        products: [product], pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+      }), { status: 200 }));
+      if (url === '/api/sales') return Promise.resolve(new Response(JSON.stringify({
+        sale: { id: 'b20fd33e-f5d2-4e8e-8b35-e5f4b4b6c365',
+          createdAt: '2026-10-08T12:00:00.000Z',
+          items: [{ productId: product.id, quantity: 1, unitPrice: '29.90' }] },
+      }), { status: 201 }));
+      if (url === '/api/sync/status') return Promise.resolve(new Response(JSON.stringify({
+        pending: 2, sent: 1, failed: 0, lastSuccessfulSync: '2026-10-08T12:00:00.000Z',
+      }), { status: 200 }));
+      if (url === '/api/auth/logout') return Promise.resolve(new Response(null, { status: 204 }));
+      throw Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await submitLogin();
+    const user = userEvent.setup();
+    expect(await screen.findByText('Blue Mug')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Sales' }));
+    await user.click(await screen.findByRole('button', { name: 'Select Blue Mug' }));
+    await user.click(screen.getByRole('button', { name: 'Record sale' }));
+    expect(await screen.findByText(/Sale recorded/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Sync' }));
+    expect(await screen.findByText('Pending updates')).toBeInTheDocument();
+    expect(screen.getByText('Pending updates').parentElement).toHaveTextContent('2');
+    expect(fetchMock).toHaveBeenCalledWith('/api/sales', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ items: [{ productId: product.id, quantity: 1 }] }),
+      headers: expect.objectContaining({ 'Idempotency-Key': key }),
+    }));
+    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(await screen.findByRole('heading', { name: 'Sign in to StockSync' })).toBeInTheDocument();
+  });
+
+  it('shows a compact product dashboard after authentication', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(emptyProductsResponse()));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Products' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(screen.queryByText('Keep every product, sale, and update in view.')).not.toBeInTheDocument();
+  });
+
+  it('restores the identity from the existing browser cookie', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(emptyProductsResponse());
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+    expect(screen.getByText('admin')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    expect(await screen.findByText('No products yet.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/me', expect.objectContaining({
+      credentials: 'same-origin',
+      signal: expect.any(AbortSignal),
+    }));
+  });
+
+  it('shows the login form after the API confirms there is no valid session', async () => {
+    let resolveRequest!: (response: Response) => void;
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise<Response>((resolve) => {
+      resolveRequest = resolve;
+    })));
+
+    render(<App />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Checking session…');
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    resolveRequest(new Response(null, { status: 401 }));
+    expect(await screen.findByRole('heading', { name: 'Sign in to StockSync' })).toBeInTheDocument();
+  });
+
+  it('allows retrying a failed session check without assuming the user is signed out', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not check your session.');
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('heading', { name: 'Sign in to StockSync' })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a stale session response after StrictMode restarts the check', async () => {
+    let resolveFirst!: (response: Response) => void;
+    let resolveSecond!: (response: Response) => void;
+    const fetchMock = vi.fn()
+      .mockReturnValueOnce(new Promise<Response>((resolve) => { resolveFirst = resolve; }))
+      .mockReturnValueOnce(new Promise<Response>((resolve) => { resolveSecond = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<StrictMode><App /></StrictMode>);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).signal?.aborted).toBe(true);
+
+    await act(async () => { resolveSecond(new Response(null, { status: 401 })); });
+    expect(screen.getByRole('heading', { name: 'Sign in to StockSync' })).toBeInTheDocument();
+    await act(async () => {
+      resolveFirst(new Response(JSON.stringify({ user: identity }), { status: 200 }));
+    });
+    expect(screen.getByRole('heading', { name: 'Sign in to StockSync' })).toBeInTheDocument();
+  });
+
+  it('clears the visible session after the logout endpoint succeeds', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(emptyProductsResponse())
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Inventory dashboard' });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Sign out' }));
+
+    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/auth/logout', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-StockSync-Request': '1' },
+    });
+    expect(await screen.findByRole('heading', { name: 'Sign in to StockSync' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Inventory dashboard' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the user signed in when logout fails', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(emptyProductsResponse())
+      .mockResolvedValueOnce(new Response(null, { status: 503 })));
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Inventory dashboard' });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Sign out' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not sign out. Try again.');
+    expect(screen.getByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeEnabled();
+  });
+
+  it('returns to login when the catalogue reports an expired session', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Sign in to StockSync' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Products' })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/products?page=1', expect.any(Object));
+  });
+});

@@ -16,7 +16,7 @@ import { createSyncQueue, createSyncWorker, migrateSyncQueue,
   syncBatchJobId } from '../src/sync/queue/sync-queue.js';
 import { createMockSyncServer } from '../src/sync/mock/mock-sync-server.js';
 
-const origin = 'http://localhost:5173';
+const origin = 'http://127.0.0.1:5173';
 const config = {
   nodeEnv: 'test', port: 3000, listenHost: '127.0.0.1', appOrigin: origin,
   jwtSecret: 'sync-flow-test-secret-with-at-least-thirty-two-bytes',

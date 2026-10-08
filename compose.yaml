@@ -64,6 +64,31 @@ services:
       retries: 5
       start_period: 10s
 
+  web:
+    build:
+      context: ./apps/web
+    environment:
+      API_PROXY_TARGET: http://api:3000
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - ./apps/web:/app/apps/web
+      - web_node_modules:/app/apps/web/node_modules
+    command: ["npm", "run", "dev"]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5173/', { signal: AbortSignal.timeout(2000) }).then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
   dispatcher:
     profiles: [sync]
     build:
@@ -127,5 +152,6 @@ volumes:
   api_node_modules:
   api_dist:
   api_test_build:
+  web_node_modules:
   db_data:
   db_test_data:

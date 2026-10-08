@@ -11,7 +11,7 @@ import { AuthTokenService } from '../src/auth/auth-token.service.js';
 import { APP_CONFIG } from '../src/config/app-config.js';
 import { loadDatabaseOptions } from '../src/database/database-options.js';
 
-const origin = 'http://localhost:5173';
+const origin = 'http://127.0.0.1:5173';
 const email = `session-${randomUUID()}@auth.stocksync.test`;
 const password = 'correct-password';
 const testConfig = {

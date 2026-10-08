@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 API_ARTIFACT_DIRS := apps/api/node_modules apps/api/dist apps/api/.test-build
 CHECK_VOLUMES := -v /app/apps/api/node_modules -v /app/apps/api/dist -v /app/apps/api/.test-build
+WEB_CHECK_VOLUMES := -v /app/apps/web/node_modules -v /app/apps/web/dist
 
 .PHONY: help setup setup-local build up sync-dispatcher sync-worker sync-mock test check down
 
@@ -20,6 +21,7 @@ help:
 setup: .env $(API_ARTIFACT_DIRS)
 	docker compose build api web
 	docker compose run --rm api npm ci --include=dev
+	docker compose run --no-deps --rm web npm ci --include=dev
 	docker compose run --rm api npm run migration:run
 	docker compose run --rm api npm run sync:queue:migrate
 	docker compose run --rm api npm run seed:run
@@ -79,7 +81,7 @@ check: .env $(API_ARTIFACT_DIRS)
 	trap 'docker compose stop db-test' EXIT; \
 	docker compose up -d --wait db-test; \
 	docker compose run --no-deps --build --rm -e NODE_ENV=test $(CHECK_VOLUMES) api npm run check
-	docker compose run --no-deps --build --rm web npm run check
+	docker compose run --no-deps --build --rm $(WEB_CHECK_VOLUMES) web npm run check
 
 down: .env
 	docker compose --profile test --profile sync down

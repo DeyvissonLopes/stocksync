@@ -3,9 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadDatabaseOptions } from '../src/database/database-options.js';
-import { SyncBatchReconciler } from '../src/sync/sync-batch-reconciler.js';
-import { SyncBatchProcessor } from '../src/sync/sync-batch-processor.js';
-import { createSyncQueue, createSyncWorker, migrateSyncQueue } from '../src/sync/sync-queue.js';
+import { SyncBatchReconciler } from '../src/sync/dispatch/sync-batch-reconciler.js';
+import { SyncBatchProcessor } from '../src/sync/worker/sync-batch-processor.js';
+import { createSyncQueue, createSyncWorker, migrateSyncQueue } from '../src/sync/queue/sync-queue.js';
 
 let db: DataSource;
 let queue: ReturnType<typeof createSyncQueue>;

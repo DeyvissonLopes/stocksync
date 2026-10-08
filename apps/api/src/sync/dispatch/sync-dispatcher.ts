@@ -3,7 +3,7 @@ import { SyncBatcher } from './sync-batcher.js';
 import { SyncBatchReconciler } from './sync-batch-reconciler.js';
 import type { SyncReconcileResult } from './sync-batch-reconciler.js';
 import { SyncJobPublisher } from './sync-job-publisher.js';
-import type { createSyncQueue } from './sync-queue.js';
+import type { createSyncQueue } from '../queue/sync-queue.js';
 
 export type SyncDispatchResult = {
   reconciliation: SyncReconcileResult;

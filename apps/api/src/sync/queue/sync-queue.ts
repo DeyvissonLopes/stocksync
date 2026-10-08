@@ -1,8 +1,8 @@
 import { Queue, Worker, createPostgresBackend, runMigrations } from 'bullmq';
 import { Pool } from 'pg';
-import { loadDatabaseOptions } from '../database/database-options.js';
-import type { SyncBatchProcessor } from './sync-batch-processor.js';
-import { syncRetryDelay } from './sync-retry.js';
+import { loadDatabaseOptions } from '../../database/database-options.js';
+import type { SyncBatchProcessor } from '../worker/sync-batch-processor.js';
+import { syncRetryDelay } from '../sync-retry.js';
 
 export const SYNC_QUEUE_NAME = 'product-sync';
 export const syncBatchJobId = (batchId: string): string => `batch-${batchId}`;

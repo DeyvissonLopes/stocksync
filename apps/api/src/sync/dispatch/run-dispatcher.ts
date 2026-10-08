@@ -1,10 +1,10 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
-import { ConfigurationError } from '../config/app-config.js';
-import { loadDatabaseOptions } from '../database/database-options.js';
+import { ConfigurationError } from '../../config/app-config.js';
+import { loadDatabaseOptions } from '../../database/database-options.js';
 import { runDispatcherLoop } from './sync-dispatcher-loop.js';
 import { SyncDispatcher } from './sync-dispatcher.js';
-import { createSyncQueue } from './sync-queue.js';
+import { createSyncQueue } from '../queue/sync-queue.js';
 
 const shutdown = new AbortController();
 const stop = () => shutdown.abort();

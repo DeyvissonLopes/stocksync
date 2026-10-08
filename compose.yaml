@@ -77,7 +77,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: ["node", "dist/sync/run-dispatcher.js"]
+    command: ["node", "dist/sync/dispatch/run-dispatcher.js"]
     stop_grace_period: 30s
 
   worker:
@@ -95,7 +95,7 @@ services:
         condition: service_healthy
       sync-mock:
         condition: service_healthy
-    command: ["node", "dist/sync/run-worker.js"]
+    command: ["node", "dist/sync/worker/run-worker.js"]
     stop_grace_period: 30s
 
   sync-mock:

@@ -1,8 +1,8 @@
 import type { DataSource } from 'typeorm';
-import { markSyncBatchFailed } from './sync-batch-failure.js';
+import { markSyncBatchFailed } from '../sync-batch-failure.js';
 import { SyncJobPublisher } from './sync-job-publisher.js';
-import { syncBatchJobId } from './sync-queue.js';
-import type { createSyncQueue } from './sync-queue.js';
+import { syncBatchJobId } from '../queue/sync-queue.js';
+import type { createSyncQueue } from '../queue/sync-queue.js';
 
 export type SyncReconcileResult = {
   publicationAttempts: number;

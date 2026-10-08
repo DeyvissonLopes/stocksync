@@ -2,8 +2,8 @@ import type { DataSource } from 'typeorm';
 import type { EntityManager } from 'typeorm';
 import { UnrecoverableError } from 'bullmq';
 import { setTimeout as delay } from 'node:timers/promises';
-import { markSyncBatchFailed } from './sync-batch-failure.js';
-import { retryAfterMs, SyncRateLimitedError } from './sync-retry.js';
+import { markSyncBatchFailed } from '../sync-batch-failure.js';
+import { retryAfterMs, SyncRateLimitedError } from '../sync-retry.js';
 
 type JobData = { batchId: string; tenantId: string };
 type BatchRow = { status: string; attempts_started: number };

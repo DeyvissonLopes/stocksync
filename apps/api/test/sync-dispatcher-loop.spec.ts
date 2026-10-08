@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runDispatcherLoop } from '../src/sync/sync-dispatcher-loop.js';
+import { runDispatcherLoop } from '../src/sync/dispatch/sync-dispatcher-loop.js';
 
 afterEach(() => {
   vi.useRealTimers();

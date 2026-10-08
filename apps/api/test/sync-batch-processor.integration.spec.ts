@@ -6,12 +6,12 @@ import { DataSource } from 'typeorm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadDatabaseOptions } from '../src/database/database-options.js';
 import { createMockSyncServer } from '../src/sync/mock/mock-sync-server.js';
-import { SyncBatchProcessor } from '../src/sync/sync-batch-processor.js';
-import { SyncBatchReconciler } from '../src/sync/sync-batch-reconciler.js';
-import { SyncBatcher } from '../src/sync/sync-batcher.js';
-import { SyncJobPublisher } from '../src/sync/sync-job-publisher.js';
+import { SyncBatchProcessor } from '../src/sync/worker/sync-batch-processor.js';
+import { SyncBatchReconciler } from '../src/sync/dispatch/sync-batch-reconciler.js';
+import { SyncBatcher } from '../src/sync/dispatch/sync-batcher.js';
+import { SyncJobPublisher } from '../src/sync/dispatch/sync-job-publisher.js';
 import { createSyncQueue, createSyncWorker, migrateSyncQueue,
-  syncBatchJobId } from '../src/sync/sync-queue.js';
+  syncBatchJobId } from '../src/sync/queue/sync-queue.js';
 
 let db: DataSource;
 let mockDb: DataSource;

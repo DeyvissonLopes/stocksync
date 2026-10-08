@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { DataSource } from 'typeorm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadDatabaseOptions } from '../src/database/database-options.js';
-import { SyncBatcher } from '../src/sync/sync-batcher.js';
-import { SyncJobPublisher } from '../src/sync/sync-job-publisher.js';
-import { createSyncQueue, migrateSyncQueue, syncBatchJobId } from '../src/sync/sync-queue.js';
+import { SyncBatcher } from '../src/sync/dispatch/sync-batcher.js';
+import { SyncJobPublisher } from '../src/sync/dispatch/sync-job-publisher.js';
+import { createSyncQueue, migrateSyncQueue, syncBatchJobId } from '../src/sync/queue/sync-queue.js';
 
 let db: DataSource;
 let queue: ReturnType<typeof createSyncQueue>;
@@ -27,7 +27,7 @@ afterAll(async () => {
 
 describe('continuous sync worker process', () => {
   it('rejects an invalid destination URL without exposing its value', () => {
-    const executable = fileURLToPath(new URL('../src/sync/run-worker.js', import.meta.url));
+    const executable = fileURLToPath(new URL('../src/sync/worker/run-worker.js', import.meta.url));
     const result = spawnSync(process.execPath, [executable], {
       env: { ...process.env, SYNC_DESTINATION_URL: 'file://private-sentinel' },
       encoding: 'utf8', timeout: 5000,
@@ -74,7 +74,7 @@ describe('continuous sync worker process', () => {
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Missing HTTP address');
 
-    const executable = fileURLToPath(new URL('../src/sync/run-worker.js', import.meta.url));
+    const executable = fileURLToPath(new URL('../src/sync/worker/run-worker.js', import.meta.url));
     const child = spawn(process.execPath, [executable], {
       env: { ...process.env,
         SYNC_DESTINATION_URL: `http://127.0.0.1:${address.port}/batches` },

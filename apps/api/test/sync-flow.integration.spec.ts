@@ -9,11 +9,11 @@ import { AppModule } from '../src/app.module.js';
 import { AuthTokenService } from '../src/auth/auth-token.service.js';
 import { APP_CONFIG } from '../src/config/app-config.js';
 import { loadDatabaseOptions } from '../src/database/database-options.js';
-import { SyncBatchProcessor } from '../src/sync/sync-batch-processor.js';
-import { SyncBatcher } from '../src/sync/sync-batcher.js';
-import { SyncJobPublisher } from '../src/sync/sync-job-publisher.js';
+import { SyncBatchProcessor } from '../src/sync/worker/sync-batch-processor.js';
+import { SyncBatcher } from '../src/sync/dispatch/sync-batcher.js';
+import { SyncJobPublisher } from '../src/sync/dispatch/sync-job-publisher.js';
 import { createSyncQueue, createSyncWorker, migrateSyncQueue,
-  syncBatchJobId } from '../src/sync/sync-queue.js';
+  syncBatchJobId } from '../src/sync/queue/sync-queue.js';
 import { createMockSyncServer } from '../src/sync/mock/mock-sync-server.js';
 
 const origin = 'http://localhost:5173';

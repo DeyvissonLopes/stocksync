@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 import type { QueryRunner } from 'typeorm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadDatabaseOptions } from '../src/database/database-options.js';
-import { SyncBatcher } from '../src/sync/sync-batcher.js';
+import { SyncBatcher } from '../src/sync/dispatch/sync-batcher.js';
 
 let db: DataSource;
 let batcher: SyncBatcher;

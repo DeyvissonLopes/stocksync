@@ -1,6 +1,6 @@
 import type { DataSource } from 'typeorm';
-import { syncBatchJobId } from './sync-queue.js';
-import type { createSyncQueue } from './sync-queue.js';
+import { syncBatchJobId } from '../queue/sync-queue.js';
+import type { createSyncQueue } from '../queue/sync-queue.js';
 
 export class SyncJobPublisher {
   constructor(private readonly dataSource: DataSource,

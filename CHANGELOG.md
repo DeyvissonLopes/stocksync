@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+- `#add` Report tenant-scoped pending, sent and failed sync event counts and the last confirmed batch through `GET /sync/status`.
+- `#test` Verify status isolation and the product/sale-to-mock sync path through the authenticated API, PostgreSQL queue and worker.
 - `#add` Run the sync worker as an optional Compose service with an explicit destination URL and graceful shutdown.
 - `#test` Verify process startup validation and completion of an active batch before SIGTERM exit.
 - `#add` Pace sync HTTP calls across tenants and honor `Retry-After` for 429 retries and later batches.

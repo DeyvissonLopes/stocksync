@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. Optional dispatcher and worker processes publish and consume sync batches through BullMQ in PostgreSQL. An internal HTTP mock receives versioned batches. The worker's success, retry, send cadence, terminal failure and graceful shutdown paths are tested. The sync status API and web interface are planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. Optional dispatcher and worker processes publish and consume sync batches through BullMQ in PostgreSQL. An internal HTTP mock receives versioned batches. The worker's success, retry, send cadence, terminal failure and graceful shutdown paths are tested. `GET /sync/status` reports tenant-scoped delivery status. The web interface is planned.
 
 ## Technologies
 
@@ -43,6 +43,16 @@ delays the retry and later batches according to `Retry-After` when supplied.
 The worker runs as a separate Compose service and waits for active jobs to
 finish on SIGTERM. Multiple worker processes would require a shared limiter
 at the HTTP send point.
+`GET /sync/status` requires the session cookie and accepts no query parameters.
+It returns `{ "pending": 0, "sent": 2, "failed": 0,
+"lastSuccessfulSync": "2026-10-07T12:00:00.000Z" }`; the timestamp is `null`
+until a batch is confirmed. Counts refer to outbox events from the current
+tenant, including events waiting in a batch or retry. `sent` means the mock
+acknowledged the event; `failed` means confirmation was not obtained within
+the retry budget and may still reflect an update applied before a lost response.
+The response is not cached. A failed batch needs manual investigation; there
+is no automatic replay of terminal failures.
+
 Run `make sync-mock` to start only the external-service simulator. It has no
 host port; the worker reaches it on the Compose network. `GET /health`
 reports process health. The mock accepts

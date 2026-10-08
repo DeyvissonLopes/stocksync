@@ -10,6 +10,7 @@ import { loadDatabaseOptions } from './database/database-options.js';
 import { ProductsModule } from './products/products.module.js';
 import { SalesModule } from './sales/sales.module.js';
 import { BrowserSecurityModule } from './security/browser-security.module.js';
+import { SyncModule } from './sync/sync.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { BrowserSecurityModule } from './security/browser-security.module.js';
     BrowserSecurityModule,
     ProductsModule,
     SalesModule,
+    SyncModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [APP_CONFIG],

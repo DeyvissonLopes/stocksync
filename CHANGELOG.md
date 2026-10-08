@@ -12,9 +12,19 @@
 | `#docs` | Documentation update |
 | `#test` | Test or verification change |
 
-## Unreleased
+## 1.0.0 — 2026-10-08
 
+The React frontend completes the product with login, tenant product browsing,
+multi-item sales and sync status.
+
+- `#add` Build a React/Vite/Tailwind frontend with a same-origin API proxy and authenticated navigation.
+- `#add` Restore browser sessions, handle login and logout, and show a paginated product dashboard with name and zero-stock filters.
+- `#add` Register multi-item sales with an idempotency key, explicit retry of uncertain outcomes and correction after insufficient stock.
+- `#add` Show tenant sync event counts and the last successful sync, refreshing while the status screen is open.
+- `#test` Cover UI states, session changes, sale retry, polling cleanup and the login-to-sync journey; validate desktop and mobile screens in Chrome.
+- `#change` Make `make setup`, `make up` and `make down` manage the full local project; keep individual controls for sync services.
 - `#fix` Use `127.0.0.1` consistently for the local web origin and API access.
+- `#docs` Expand delivery documentation with architecture, TDD, trade-offs, environment setup, test coverage and known limitations.
 
 ## 0.6.0 — 2026-10-08
 

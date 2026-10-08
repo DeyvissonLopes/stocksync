@@ -3,29 +3,32 @@ API_ARTIFACT_DIRS := apps/api/node_modules apps/api/dist apps/api/.test-build
 CHECK_VOLUMES := -v /app/apps/api/node_modules -v /app/apps/api/dist -v /app/apps/api/.test-build
 WEB_CHECK_VOLUMES := -v /app/apps/web/node_modules -v /app/apps/web/dist
 
-.PHONY: help setup setup-local build up sync-dispatcher sync-worker sync-mock test check down
+.PHONY: help setup setup-local build up sync-dispatcher sync-dispatcher-stop sync-worker sync-worker-stop sync-mock sync-mock-stop test check down
 
 help:
 	@printf 'StockSync commands:\n'
-	@printf '  make setup  Create the API .env, build, migrate, seed and start API/web.\n'
+	@printf '  make setup  Create the API .env, build, migrate, seed and start all services.\n'
 	@printf '  make setup-local  Install project Node/npm and local IDE dependencies (requires nvm).\n'
-	@printf '  make build  Rebuild the API and web images.\n'
-	@printf '  make up     Start the API and web with Docker Compose.\n'
+	@printf '  make build  Rebuild all project images.\n'
+	@printf '  make up     Start all services after setup.\n'
 	@printf '  make sync-dispatcher  Start the optional sync dispatcher.\n'
+	@printf '  make sync-dispatcher-stop  Stop only the sync dispatcher.\n'
 	@printf '  make sync-worker  Start the optional sync worker and mock.\n'
+	@printf '  make sync-worker-stop  Stop only the sync worker.\n'
 	@printf '  make sync-mock  Start the internal external-service simulator.\n'
+	@printf '  make sync-mock-stop  Stop only the external-service simulator.\n'
 	@printf '  make test   Run the tests in a temporary container.\n'
 	@printf '  make check  Check API and web in temporary containers.\n'
 	@printf '  make down   Stop and remove the Compose services and network.\n'
 
 setup: .env $(API_ARTIFACT_DIRS)
-	docker compose build api web
+	docker compose --profile sync build
 	docker compose run --rm api npm ci --include=dev
 	docker compose run --no-deps --rm web npm ci --include=dev
 	docker compose run --rm api npm run migration:run
 	docker compose run --rm api npm run sync:queue:migrate
 	docker compose run --rm api npm run seed:run
-	docker compose up --wait --wait-timeout 60 --detach
+	docker compose --profile sync up --wait --wait-timeout 60 --detach
 
 .env: apps/api/.env
 	ln -s apps/api/.env .env
@@ -56,19 +59,28 @@ setup-local:
 	npm run typecheck
 
 build: .env
-	docker compose build api web
+	docker compose --profile sync build
 
 up: .env $(API_ARTIFACT_DIRS)
-	docker compose up
+	docker compose --profile sync up --build --wait --wait-timeout 60 --detach
 
 sync-dispatcher: .env
 	docker compose --profile sync up --build --detach dispatcher
 
+sync-dispatcher-stop: .env
+	docker compose --profile sync stop dispatcher
+
 sync-worker: .env
 	docker compose --profile sync up --build --detach worker
 
+sync-worker-stop: .env
+	docker compose --profile sync stop worker
+
 sync-mock: .env
 	docker compose --profile sync up --build --detach sync-mock
+
+sync-mock-stop: .env
+	docker compose --profile sync stop sync-mock
 
 test: .env $(API_ARTIFACT_DIRS)
 	@set -e; \

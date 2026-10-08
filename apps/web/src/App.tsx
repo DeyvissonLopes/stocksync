@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { login, LoginError } from './auth';
+import { AuthRequestError, currentSession, login, logout } from './auth';
 import type { Identity } from './auth';
 
+type SessionState =
+  | { status: 'checking' | 'anonymous' | 'error' }
+  | { status: 'authenticated'; user: Identity };
+
 function errorMessage(error: unknown): string {
-  if (error instanceof LoginError) {
+  if (error instanceof AuthRequestError) {
     if (error.kind === 'invalid') return 'Incorrect email or password.';
     if (error.kind === 'rate-limited') return 'Too many sign-in attempts. Try again shortly.';
   }
@@ -14,9 +18,28 @@ function errorMessage(error: unknown): string {
 export function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [session, setSession] = useState<SessionState>({ status: 'checking' });
+  const [sessionCheckAttempt, setSessionCheckAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    void currentSession(controller.signal)
+      .then((user) => {
+        if (active) setSession(user ? { status: 'authenticated', user } : { status: 'anonymous' });
+      })
+      .catch(() => {
+        if (active) setSession({ status: 'error' });
+      });
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [sessionCheckAttempt]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,11 +49,27 @@ export function App() {
     try {
       const user = await login(email, password);
       setPassword('');
-      setIdentity(user);
+      setSession({ status: 'authenticated', user });
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleLogout() {
+    if (isSigningOut) return;
+    setLogoutError(null);
+    setIsSigningOut(true);
+    try {
+      await logout();
+      setEmail('');
+      setPassword('');
+      setSession({ status: 'anonymous' });
+    } catch {
+      setLogoutError('Could not sign out. Try again.');
+    } finally {
+      setIsSigningOut(false);
     }
   }
 
@@ -57,14 +96,45 @@ export function App() {
 
       <section className="flex min-h-[60vh] items-center justify-center px-6 py-14 sm:px-12 lg:px-16">
         <div className="w-full max-w-md">
-          {identity ? (
+          {session.status === 'checking' ? (
+            <div role="status" aria-live="polite" className="text-slate-600">
+              Checking session…
+            </div>
+          ) : session.status === 'error' ? (
+            <div>
+              <p role="alert" className="text-slate-700">Could not check your session.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSession({ status: 'checking' });
+                  setSessionCheckAttempt((attempt) => attempt + 1);
+                }}
+                className="mt-5 rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-2"
+              >
+                Try again
+              </button>
+            </div>
+          ) : session.status === 'authenticated' ? (
             <div aria-live="polite">
               <p className="mb-3 text-xs font-bold uppercase tracking-[0.24em] text-teal-700">Account access</p>
               <h2 className="text-3xl font-semibold tracking-tight">Signed in</h2>
               <p className="mt-4 text-slate-600">Your session is active.</p>
               <p className="mt-8 rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-700">
-                Role: <span className="font-semibold text-slate-950">{identity.role}</span>
+                Role: <span className="font-semibold text-slate-950">{session.user.role}</span>
               </p>
+              {logoutError && (
+                <p role="alert" className="mt-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                  {logoutError}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isSigningOut}
+                className="mt-6 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+              >
+                {isSigningOut ? 'Signing out…' : 'Sign out'}
+              </button>
             </div>
           ) : (
             <>

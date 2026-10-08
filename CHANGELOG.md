@@ -12,6 +12,14 @@
 | `#docs` | Documentation update |
 | `#test` | Test or verification change |
 
+## 1.0.1 — 2026-10-08
+
+Local setup now reports concise progress and opens the web app on graphical
+development desktops.
+
+- `#change` Show one progress line per setup step and print command output when a step fails.
+- `#change` Print the web URL after setup and open it in the default browser when `NODE_ENV=development` and a graphical session is available.
+
 ## 1.0.0 — 2026-10-08
 
 The React frontend completes the product with login, tenant product browsing,

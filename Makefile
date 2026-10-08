@@ -22,22 +22,43 @@ help:
 	@printf '  make down   Stop and remove the Compose services and network.\n'
 
 setup: .env $(API_ARTIFACT_DIRS)
-	docker compose --profile sync build
-	docker compose run --rm api npm ci --include=dev
-	docker compose run --no-deps --rm web npm ci --include=dev
-	docker compose run --rm api npm run migration:run
-	docker compose run --rm api npm run sync:queue:migrate
-	docker compose run --rm api npm run seed:run
-	docker compose --profile sync up --wait --wait-timeout 60 --detach
+	@set -e; \
+	log_file=$$(mktemp); \
+	trap 'rm -f "$$log_file"' EXIT; \
+	run_step() { \
+		label=$$1; shift; \
+		printf '%s... ' "$$label"; \
+		if "$$@" >"$$log_file" 2>&1; then \
+			printf 'done\n'; \
+		else \
+			status=$$?; \
+			printf 'failed\n' >&2; \
+			cat "$$log_file" >&2; \
+			return "$$status"; \
+		fi; \
+	}; \
+	run_step 'Build images' docker compose --profile sync build; \
+	run_step 'Install API dependencies' docker compose run --rm api npm ci --include=dev; \
+	run_step 'Install web dependencies' docker compose run --no-deps --rm web npm ci --include=dev; \
+	run_step 'Run database migrations' docker compose run --rm api npm run migration:run; \
+	run_step 'Run sync queue migrations' docker compose run --rm api npm run sync:queue:migrate; \
+	run_step 'Seed demo data' docker compose run --rm api npm run seed:run; \
+	run_step 'Start services' docker compose --profile sync up --wait --wait-timeout 60 --detach; \
+	printf '\nWeb: http://127.0.0.1:5173\n'; \
+	setup_node_env=$$(sed -n 's/^NODE_ENV=//p' apps/api/.env | tail -n 1); \
+	if [ "$$setup_node_env" = development ] && command -v xdg-open >/dev/null 2>&1 && \
+		{ [ -n "$${DISPLAY:-}" ] || [ -n "$${WAYLAND_DISPLAY:-}" ]; }; then \
+		xdg-open http://127.0.0.1:5173 >/dev/null 2>&1 & \
+	fi
 
 .env: apps/api/.env
-	ln -s apps/api/.env .env
+	@ln -s apps/api/.env .env
 
 apps/api/.env:
-	cp apps/api/.env.example apps/api/.env
+	@cp apps/api/.env.example apps/api/.env
 
 $(API_ARTIFACT_DIRS):
-	mkdir -p $@
+	@mkdir -p $@
 
 setup-local: SHELL := /bin/bash
 setup-local:

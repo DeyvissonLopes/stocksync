@@ -75,6 +75,73 @@ describe('authenticated product catalogue', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/products?page=1', expect.any(Object));
   });
 
+  it('searches by name with a URL-encoded query', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(firstPage))
+      .mockResolvedValueOnce(jsonResponse({
+        products: [product(1)],
+        pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ProductsPage onSessionExpired={vi.fn()} />);
+    await screen.findByText('Product 2');
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textbox', { name: 'Search by name' }), 'Blue Mug');
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenNthCalledWith(
+      2, '/api/products?page=1&name=Blue+Mug', expect.any(Object),
+    ));
+    expect(await screen.findByText('Blue Mug')).toBeInTheDocument();
+    expect(screen.queryByText('Product 2')).not.toBeInTheDocument();
+  });
+
+  it('combines filters and returns to the first page', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(firstPage))
+      .mockResolvedValueOnce(jsonResponse(secondPage))
+      .mockResolvedValueOnce(jsonResponse({
+        products: [product(1)],
+        pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ProductsPage onSessionExpired={vi.fn()} />);
+    const user = userEvent.setup();
+    await screen.findByText('Blue Mug');
+    await user.click(screen.getByRole('button', { name: 'Next page' }));
+    await screen.findByText('Product 11');
+    await user.type(screen.getByRole('textbox', { name: 'Search by name' }), 'Blue Mug');
+    await user.click(screen.getByRole('checkbox', { name: 'Out of stock only' }));
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenNthCalledWith(
+      3, '/api/products?page=1&name=Blue+Mug&zeroStock=true', expect.any(Object),
+    ));
+    expect(await screen.findByText('Blue Mug')).toBeInTheDocument();
+    expect(screen.queryByText('Product 11')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Next page' })).not.toBeInTheDocument();
+  });
+
+  it('distinguishes an empty filtered result from an empty catalogue', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(firstPage))
+      .mockResolvedValueOnce(jsonResponse({
+        products: [], pagination: { page: 1, pageSize: 10, total: 0, totalPages: 0 },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<ProductsPage onSessionExpired={vi.fn()} />);
+    await screen.findByText('Blue Mug');
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textbox', { name: 'Search by name' }), 'Missing');
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+
+    expect(await screen.findByText('No products match these filters.')).toBeInTheDocument();
+    expect(screen.queryByText('No products yet.')).not.toBeInTheDocument();
+  });
+
   it('returns to the last valid page when the catalogue shrinks', async () => {
     const reducedFirstPage = {
       products: firstPage.products,

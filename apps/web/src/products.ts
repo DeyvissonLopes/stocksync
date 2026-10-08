@@ -12,6 +12,8 @@ export type ProductPage = {
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 };
 
+export type ProductFilters = { name: string; zeroStock: boolean };
+
 export class ProductListError extends Error {
   constructor(readonly kind: 'unauthorized' | 'unavailable') {
     super(kind);
@@ -40,8 +42,13 @@ function isProductPage(value: unknown, requestedPage: number): value is ProductP
     pagination.totalPages === Math.ceil((pagination.total as number) / 10);
 }
 
-export async function listProducts(page: number, signal: AbortSignal): Promise<ProductPage> {
-  const response = await fetch(`/api/products?page=${page}`, {
+export async function listProducts(
+  page: number, filters: ProductFilters, signal: AbortSignal,
+): Promise<ProductPage> {
+  const query = new URLSearchParams({ page: String(page) });
+  if (filters.name) query.set('name', filters.name);
+  if (filters.zeroStock) query.set('zeroStock', 'true');
+  const response = await fetch(`/api/products?${query}`, {
     credentials: 'same-origin', signal,
   });
   if (response.status === 401) throw new ProductListError('unauthorized');

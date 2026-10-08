@@ -110,8 +110,9 @@ make setup
 ```
 
 This prepares the database, seeds demo data, and starts the API, web app,
-dispatcher, worker and external-service mock. On later runs, start all
-services with `make up`. Use `make down` to stop all project containers and
+dispatcher, worker and external-service mock. Setup shows one progress line per
+step and prints the command output if a step fails. On later runs, start all services with `make up`. Use `make down` to
+stop all project containers and
 the Compose network while keeping the database volumes.
 
 Setup applies the application migrations and the separate BullMQ schema migration.

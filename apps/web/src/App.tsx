@@ -4,6 +4,7 @@ import { AuthRequestError, currentSession, login, logout } from './auth';
 import type { Identity } from './auth';
 import { AuthenticatedLayout } from './AuthenticatedLayout';
 import { ProductsPage } from './ProductsPage';
+import { hasPendingSaleIntent, SalesPage } from './SalesPage';
 
 type SessionState =
   | { status: 'checking' | 'anonymous' | 'error' }
@@ -26,9 +27,11 @@ export function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [view, setView] = useState<'products' | 'sales'>('products');
   const handleSessionExpired = useCallback(() => {
     setEmail('');
     setPassword('');
+    setView('products');
     setSession({ status: 'anonymous' });
   }, []);
 
@@ -37,7 +40,9 @@ export function App() {
     let active = true;
     void currentSession(controller.signal)
       .then((user) => {
-        if (active) setSession(user ? { status: 'authenticated', user } : { status: 'anonymous' });
+        if (!active) return;
+        setView(user && hasPendingSaleIntent(user) ? 'sales' : 'products');
+        setSession(user ? { status: 'authenticated', user } : { status: 'anonymous' });
       })
       .catch(() => {
         if (active) setSession({ status: 'error' });
@@ -50,7 +55,7 @@ export function App() {
 
   useEffect(() => {
     if (session.status === 'authenticated') window.scrollTo(0, 0);
-  }, [session.status]);
+  }, [session.status, view]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,6 +65,7 @@ export function App() {
     try {
       const user = await login(email, password);
       setPassword('');
+      setView(hasPendingSaleIntent(user) ? 'sales' : 'products');
       setSession({ status: 'authenticated', user });
     } catch (cause) {
       setError(errorMessage(cause));
@@ -76,6 +82,7 @@ export function App() {
       await logout();
       setEmail('');
       setPassword('');
+      setView('products');
       setSession({ status: 'anonymous' });
     } catch {
       setLogoutError('Could not sign out. Try again.');
@@ -88,12 +95,20 @@ export function App() {
     return (
       <AuthenticatedLayout
         role={session.user.role}
+        activeView={view}
+        onNavigate={setView}
         isSigningOut={isSigningOut}
         logoutError={logoutError}
         onSignOut={handleLogout}
       >
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Inventory dashboard</h1>
-        <ProductsPage onSessionExpired={handleSessionExpired} />
+        {view === 'products' ? (
+          <>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Inventory dashboard</h1>
+            <ProductsPage onSessionExpired={handleSessionExpired} />
+          </>
+        ) : (
+          <SalesPage identity={session.user} onSessionExpired={handleSessionExpired} />
+        )}
       </AuthenticatedLayout>
     );
   }

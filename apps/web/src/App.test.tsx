@@ -21,6 +21,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  sessionStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -117,6 +118,41 @@ describe('login screen', () => {
 });
 
 describe('session lifecycle', () => {
+  it('reopens an uncertain sale after restoring the same user session', async () => {
+    sessionStorage.setItem(`stocksync:sale-intent:${identity.tenantId}:${identity.userId}`, JSON.stringify({
+      key: 'a8b25d95-3a26-4290-a02e-c8f674940000',
+      items: [{ product: {
+        id: '9e588a34-7217-4d5b-a97a-c627ff6f4e48',
+        name: 'Blue Mug', sku: 'DEMO-CAN', price: '29.90', stock: 8, version: '1',
+      }, quantity: 2 }],
+    }));
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(emptyProductsResponse()));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'New sale' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Sale status unknown');
+    expect(screen.queryByRole('heading', { name: 'Inventory dashboard' })).not.toBeInTheDocument();
+  });
+
+  it('navigates between the product dashboard and the sale screen', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockImplementation(() => Promise.resolve(emptyProductsResponse())));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Sales' }));
+    expect(await screen.findByRole('heading', { name: 'New sale' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Inventory dashboard' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Products' }));
+    expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+  });
+
   it('shows a compact product dashboard after authentication', async () => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))

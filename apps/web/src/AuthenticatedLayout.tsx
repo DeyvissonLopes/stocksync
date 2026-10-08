@@ -3,6 +3,8 @@ import type { Identity } from './auth';
 
 type AuthenticatedLayoutProps = {
   role: Identity['role'];
+  activeView: 'products' | 'sales';
+  onNavigate: (view: 'products' | 'sales') => void;
   isSigningOut: boolean;
   logoutError: string | null;
   onSignOut: () => void;
@@ -10,7 +12,7 @@ type AuthenticatedLayoutProps = {
 };
 
 export function AuthenticatedLayout({
-  role, isSigningOut, logoutError, onSignOut, children,
+  role, activeView, onNavigate, isSigningOut, logoutError, onSignOut, children,
 }: AuthenticatedLayoutProps) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -34,6 +36,19 @@ export function AuthenticatedLayout({
             </button>
           </div>
         </div>
+        <nav aria-label="Main navigation" className="mx-auto flex w-full max-w-6xl gap-1 px-6 sm:px-8">
+          {(['products', 'sales'] as const).map((view) => (
+            <button
+              key={view}
+              type="button"
+              aria-current={activeView === view ? 'page' : undefined}
+              onClick={() => onNavigate(view)}
+              className={`border-b-2 px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-inset ${activeView === view ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-600 hover:text-slate-950'}`}
+            >
+              {view === 'products' ? 'Products' : 'Sales'}
+            </button>
+          ))}
+        </nav>
       </header>
       <main className="mx-auto w-full max-w-6xl px-6 py-8 sm:px-8">
         {logoutError && (

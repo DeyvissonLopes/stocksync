@@ -111,9 +111,11 @@ make setup
 
 This prepares the database, seeds demo data, and starts the API, web app,
 dispatcher, worker and external-service mock. Setup shows one progress line per
-step and prints the command output if a step fails. On later runs, start all services with `make up`. Use `make down` to
-stop all project containers and
-the Compose network while keeping the database volumes.
+step and prints the command output if a step fails. It prints the web URL after
+startup and opens it in the default browser when `NODE_ENV=development` and a
+graphical Linux session is available. On later runs, start all services with
+`make up`. Use `make down` to stop the project containers and network while
+keeping the database volumes.
 
 Setup applies the application migrations and the separate BullMQ schema migration.
 For an existing database, run `docker compose run --rm api npm run sync:queue:migrate`

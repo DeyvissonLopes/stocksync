@@ -51,7 +51,10 @@ tenant, including events waiting in a batch or retry. `sent` means the mock
 acknowledged the event; `failed` means confirmation was not obtained within
 the retry budget and may still reflect an update applied before a lost response.
 The response is not cached. A failed batch needs manual investigation; there
-is no automatic replay of terminal failures.
+is no automatic replay of terminal failures. If a retained job reports
+`completed` or `unknown` while its batch remains pending or queued,
+reconciliation leaves it unresolved and does not currently log that
+discrepancy; inspect the batch and job before intervening.
 
 Run `make sync-mock` to start only the external-service simulator. It has no
 host port; the worker reaches it on the Compose network. `GET /health`

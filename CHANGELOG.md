@@ -14,6 +14,11 @@
 
 ## Unreleased
 
+## 0.6.0 — 2026-10-08
+
+Product updates now sync asynchronously through tenant batches, a PostgreSQL-backed queue and a version-aware external-service mock.
+
+- `#change` Group sync dispatch, queue and worker files by responsibility.
 - `#add` Report tenant-scoped pending, sent and failed sync event counts and the last confirmed batch through `GET /sync/status`.
 - `#test` Verify status isolation and the product/sale-to-mock sync path through the authenticated API, PostgreSQL queue and worker.
 - `#add` Run the sync worker as an optional Compose service with an explicit destination URL and graceful shutdown.

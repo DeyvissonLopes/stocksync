@@ -14,6 +14,42 @@
 
 ## Unreleased
 
+## 0.6.0 — 2026-10-08
+
+Product updates now sync asynchronously through tenant batches, a PostgreSQL-backed queue and a version-aware external-service mock.
+
+- `#change` Group sync dispatch, queue and worker files by responsibility.
+- `#add` Report tenant-scoped pending, sent and failed sync event counts and the last confirmed batch through `GET /sync/status`.
+- `#test` Verify status isolation and the product/sale-to-mock sync path through the authenticated API, PostgreSQL queue and worker.
+- `#add` Run the sync worker as an optional Compose service with an explicit destination URL and graceful shutdown.
+- `#test` Verify process startup validation and completion of an active batch before SIGTERM exit.
+- `#add` Pace sync HTTP calls across tenants and honor `Retry-After` for 429 retries and later batches.
+- `#test` Verify rolling-window send cadence and cross-tenant 429 cooldown with BullMQ, PostgreSQL and HTTP.
+- `#add` Retry transient sync failures with bounded exponential backoff and persist terminal batch/event failures, including reconciliation after a worker crash.
+- `#test` Verify transient retry, permanent HTTP failure, exhausted call budget and retained failed-job recovery, including a failed terminal database write, with BullMQ, HTTP and PostgreSQL.
+- `#add` Consume sync batch jobs through a BullMQ worker processor that sends immutable outbox snapshots and records complete ACKs atomically.
+- `#test` Verify real queue consumption, tenant mismatch rejection, snapshot delivery, ACK validation, replay safety and durable attempt reservation over PostgreSQL and HTTP.
+- `#add` Run an internal HTTP sync mock with durable tenant/product versions and exact batch event ACKs.
+- `#change` Reject conflicting same-version payloads and requests above five calls per moving second; provide deterministic and demo failure modes.
+- `#test` Verify duplicate and stale delivery, transaction rollback, concurrent writes, tenant isolation, restart persistence and controlled failures over HTTP and PostgreSQL.
+- `#add` Run the sync dispatcher in an optional separate Compose process with sequential polling and graceful shutdown.
+- `#test` Verify no overlapping rounds, retry after a failed round and shutdown during active work.
+- `#add` Run one sync dispatcher round that reconciles existing batches before forming and publishing the next.
+- `#test` Verify recovery before new batching and retry of a persisted batch after queue publication fails.
+- `#add` Reconcile persisted batches with missing or retained BullMQ jobs without creating new batches.
+- `#test` Verify recovery of both publication gaps, duplicate avoidance and terminal batch protection over PostgreSQL.
+- `#add` Store sync jobs in BullMQ's PostgreSQL backend after an explicit schema migration.
+- `#add` Publish one stable job per persisted batch and mark it queued after publication.
+- `#test` Verify queue migration, job persistence across connections, duplicate publication and terminal batch protection.
+- `#add` Choose the oldest available tenant and form its sync batch in one transaction.
+- `#test` Verify tenant selection and progress while an older tenant event is locked.
+- `#docs` Select BullMQ with PostgreSQL as the planned sync queue backend.
+- `#add` Assign up to 50 pending product snapshots from one tenant to a durable sync batch in one transaction.
+- `#test` Verify ordered batch size, tenant isolation, eligible events and concurrent claims over PostgreSQL.
+- `#add` Persist tenant-bound sync batches and link pending outbox events to their batch.
+- `#security` Reject outbox links to batches from another tenant through a composite foreign key.
+- `#test` Verify batch defaults, status and attempt checks, and tenant-safe outbox links in PostgreSQL.
+
 ## 0.5.0 — 2026-10-07
 
 Sales can now be registered atomically with stock audit and idempotent retries.

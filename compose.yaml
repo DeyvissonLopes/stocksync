@@ -64,6 +64,65 @@ services:
       retries: 5
       start_period: 10s
 
+  dispatcher:
+    profiles: [sync]
+    build:
+      context: ./apps/api
+    env_file:
+      - path: ./apps/api/.env.example
+      - path: ./apps/api/.env
+        required: false
+    environment:
+      DB_PORT: ${DB_PORT:?Set DB_PORT in apps/api/.env}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["node", "dist/sync/dispatch/run-dispatcher.js"]
+    stop_grace_period: 30s
+
+  worker:
+    profiles: [sync]
+    build:
+      context: ./apps/api
+    env_file:
+      - path: ./apps/api/.env.example
+      - path: ./apps/api/.env
+        required: false
+    environment:
+      DB_PORT: ${DB_PORT:?Set DB_PORT in apps/api/.env}
+    depends_on:
+      db:
+        condition: service_healthy
+      sync-mock:
+        condition: service_healthy
+    command: ["node", "dist/sync/worker/run-worker.js"]
+    stop_grace_period: 30s
+
+  sync-mock:
+    profiles: [sync]
+    build:
+      context: ./apps/api
+    env_file:
+      - path: ./apps/api/.env.example
+      - path: ./apps/api/.env
+        required: false
+    environment:
+      DB_PORT: ${DB_PORT:?Set DB_PORT in apps/api/.env}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["node", "dist/sync/mock/run-mock-sync.js"]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/health', { signal: AbortSignal.timeout(2000) }).then(() => process.exit(0)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
 volumes:
   api_node_modules:
   api_dist:

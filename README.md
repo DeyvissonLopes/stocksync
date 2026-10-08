@@ -4,7 +4,7 @@
 
 StockSync helps businesses manage product inventory across separate tenant accounts. It is designed to record sales safely, keep an audit history of stock changes, and synchronize product availability with an external platform.
 
-Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. External sync and the web interface are planned.
+Current scope: API bootstrap, PostgreSQL persistence, browser write protection, token login with an HttpOnly cookie, session inspection, logout, authenticated product reading and stock history, creation, editing and archiving. `POST /sales` records tenant sales with transactional stock changes and idempotent replay. Optional dispatcher and worker processes publish and consume sync batches through BullMQ in PostgreSQL. An internal HTTP mock receives versioned batches. The worker's success, retry, send cadence, terminal failure and graceful shutdown paths are tested. `GET /sync/status` reports tenant-scoped delivery status. The web interface is planned.
 
 ## Technologies
 
@@ -12,6 +12,7 @@ Current scope: API bootstrap, PostgreSQL persistence, browser write protection, 
 | --- | --- |
 | API | Node.js, NestJS, TypeScript |
 | Database | PostgreSQL, TypeORM |
+| Sync queue | BullMQ with PostgreSQL backend |
 | Web interface (planned) | React, TypeScript, Vite |
 | Development | Docker Compose, Make |
 | Testing and linting | Vitest, ESLint |
@@ -25,6 +26,60 @@ make setup
 ```
 
 API: http://127.0.0.1:3000. Local Node.js/npm are optional.
+
+After setup, run `make sync-dispatcher` and `make sync-worker` to start the
+optional sync pipeline. The worker target also starts the internal HTTP mock.
+`SYNC_DESTINATION_URL` defaults to `http://sync-mock:3001/batches` in the
+example environment; the worker validates this URL before connecting.
+The worker processor loads snapshots from the persisted batch, sends one HTTP
+request per attempt, requires an exact ACK and atomically marks the batch and
+events as sent. Jobs retry transient errors up to five times with exponential
+backoff and jitter; permanent HTTP 4xx errors (except 408/429) and exhausted
+attempts mark the batch and events failed. The reconciler mirrors retained
+failed jobs after a crash.
+The worker limits queue starts to one per 250 ms and also spaces HTTP starts
+by at least 250 ms across tenants in the single-worker deployment. A 429
+delays the retry and later batches according to `Retry-After` when supplied.
+The worker runs as a separate Compose service and waits for active jobs to
+finish on SIGTERM. Multiple worker processes would require a shared limiter
+at the HTTP send point.
+`GET /sync/status` requires the session cookie and accepts no query parameters.
+It returns `{ "pending": 0, "sent": 2, "failed": 0,
+"lastSuccessfulSync": "2026-10-07T12:00:00.000Z" }`; the timestamp is `null`
+until a batch is confirmed. Counts refer to outbox events from the current
+tenant, including events waiting in a batch or retry. `sent` means the mock
+acknowledged the event; `failed` means confirmation was not obtained within
+the retry budget and may still reflect an update applied before a lost response.
+The response is not cached. A failed batch needs manual investigation; there
+is no automatic replay of terminal failures. If a retained job reports
+`completed` or `unknown` while its batch remains pending or queued,
+reconciliation leaves it unresolved and does not currently log that
+discrepancy; inspect the batch and job before intervening.
+
+Run `make sync-mock` to start only the external-service simulator. It has no
+host port; the worker reaches it on the Compose network. `GET /health`
+reports process health. The mock accepts
+`POST /batches` with `batchId`, `tenantId` and one to 50 updates containing
+`eventId`, `productId`, `sku`, `stock`, decimal-string `price` and decimal-string
+`version`. A successful response returns the batch ID and every event ID in
+`acknowledgedEventIds`. It preserves only the newest version of each
+tenant/product in the separate `mock_sync` schema. Repeated or older versions
+are acknowledged without changing that state; conflicting values at the same
+version return `409` and roll back the batch.
+
+The mock rejects more than five calls in a moving second with `429` and
+`Retry-After`. Set `MOCK_SYNC_FAILURE_MODE=demo` in `apps/api/.env` for about
+10% simulated errors and 10% timeouts, half of which occur after applying the
+batch. The default `off` mode is stable; tests inject deterministic outcomes.
+The mock's version and ACK fields are additions under our control. A real
+external service limited to `sku`, `stock` and `price` would need a compatible
+ordering contract to guarantee that late old updates cannot overwrite newer
+ones. The mock uses one process; its request counter is in memory.
+`make down` stops it along with the other services.
+
+Setup applies the application migrations and the separate BullMQ schema migration.
+For an existing database, run `docker compose run --rm api npm run sync:queue:migrate`
+before starting a sync worker or publisher.
 
 To stop:
 

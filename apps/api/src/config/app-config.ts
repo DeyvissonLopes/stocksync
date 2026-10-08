@@ -12,7 +12,8 @@ type DatabaseConfigurationField =
   `${'DB' | 'TEST_DB'}_${'HOST' | 'PORT' | 'USER' | 'PASSWORD' | 'NAME'}`;
 
 export class ConfigurationError extends Error {
-  constructor(field: 'NODE_ENV' | 'PORT' | 'LISTEN_HOST' | 'APP_ORIGIN' | 'JWT_SECRET' | DatabaseConfigurationField) {
+  constructor(field: 'NODE_ENV' | 'PORT' | 'LISTEN_HOST' | 'APP_ORIGIN' | 'JWT_SECRET' |
+    'SYNC_DESTINATION_URL' | DatabaseConfigurationField) {
     super(`Invalid configuration: ${field}`);
     this.name = 'ConfigurationError';
   }

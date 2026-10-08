@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AuthRequestError, currentSession, login, logout } from './auth';
 import type { Identity } from './auth';
+import { AuthenticatedLayout } from './AuthenticatedLayout';
+import { ProductsPage } from './ProductsPage';
 
 type SessionState =
   | { status: 'checking' | 'anonymous' | 'error' }
@@ -24,6 +26,11 @@ export function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const handleSessionExpired = useCallback(() => {
+    setEmail('');
+    setPassword('');
+    setSession({ status: 'anonymous' });
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -40,6 +47,10 @@ export function App() {
       controller.abort();
     };
   }, [sessionCheckAttempt]);
+
+  useEffect(() => {
+    if (session.status === 'authenticated') window.scrollTo(0, 0);
+  }, [session.status]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,6 +82,20 @@ export function App() {
     } finally {
       setIsSigningOut(false);
     }
+  }
+
+  if (session.status === 'authenticated') {
+    return (
+      <AuthenticatedLayout
+        role={session.user.role}
+        isSigningOut={isSigningOut}
+        logoutError={logoutError}
+        onSignOut={handleLogout}
+      >
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Inventory dashboard</h1>
+        <ProductsPage onSessionExpired={handleSessionExpired} />
+      </AuthenticatedLayout>
+    );
   }
 
   return (
@@ -112,28 +137,6 @@ export function App() {
                 className="mt-5 rounded-xl bg-teal-700 px-5 py-3 font-semibold text-white focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-2"
               >
                 Try again
-              </button>
-            </div>
-          ) : session.status === 'authenticated' ? (
-            <div aria-live="polite">
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.24em] text-teal-700">Account access</p>
-              <h2 className="text-3xl font-semibold tracking-tight">Signed in</h2>
-              <p className="mt-4 text-slate-600">Your session is active.</p>
-              <p className="mt-8 rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-700">
-                Role: <span className="font-semibold text-slate-950">{session.user.role}</span>
-              </p>
-              {logoutError && (
-                <p role="alert" className="mt-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                  {logoutError}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={isSigningOut}
-                className="mt-6 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-900 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
-              >
-                {isSigningOut ? 'Signing out…' : 'Sign out'}
               </button>
             </div>
           ) : (

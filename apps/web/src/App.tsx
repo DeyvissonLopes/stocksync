@@ -5,6 +5,7 @@ import type { Identity } from './auth';
 import { AuthenticatedLayout } from './AuthenticatedLayout';
 import { ProductsPage } from './ProductsPage';
 import { hasPendingSaleIntent, SalesPage } from './SalesPage';
+import { SyncStatusPage } from './SyncStatusPage';
 
 type SessionState =
   | { status: 'checking' | 'anonymous' | 'error' }
@@ -27,7 +28,7 @@ export function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [view, setView] = useState<'products' | 'sales'>('products');
+  const [view, setView] = useState<'products' | 'sales' | 'sync'>('products');
   const handleSessionExpired = useCallback(() => {
     setEmail('');
     setPassword('');
@@ -106,8 +107,10 @@ export function App() {
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Inventory dashboard</h1>
             <ProductsPage onSessionExpired={handleSessionExpired} />
           </>
-        ) : (
+        ) : view === 'sales' ? (
           <SalesPage identity={session.user} onSessionExpired={handleSessionExpired} />
+        ) : (
+          <SyncStatusPage onSessionExpired={handleSessionExpired} />
         )}
       </AuthenticatedLayout>
     );

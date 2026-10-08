@@ -153,6 +153,70 @@ describe('session lifecycle', () => {
     expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
   });
 
+  it('opens the tenant sync status from the authenticated navigation', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(emptyProductsResponse())
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        pending: 2, sent: 1, failed: 0, lastSuccessfulSync: null,
+      }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await screen.findByRole('heading', { name: 'Inventory dashboard' });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Sync' }));
+
+    expect(await screen.findByRole('heading', { name: 'Sync status' })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/sync/status', expect.objectContaining({
+      credentials: 'same-origin', signal: expect.any(AbortSignal),
+    }));
+  });
+
+  it('moves from login through products and a sale to the latest sync status', async () => {
+    const product = {
+      id: '9e588a34-7217-4d5b-a97a-c627ff6f4e48',
+      name: 'Blue Mug', sku: 'DEMO-CAN', price: '29.90', stock: 8, version: '1',
+    };
+    const key = 'a8b25d95-3a26-4290-a02e-c8f674940000';
+    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValue(key) });
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url === '/api/auth/me') return Promise.resolve(new Response(null, { status: 401 }));
+      if (url === '/api/auth/login') return Promise.resolve(new Response(JSON.stringify({ user: identity }), { status: 200 }));
+      if (url.startsWith('/api/products?')) return Promise.resolve(new Response(JSON.stringify({
+        products: [product], pagination: { page: 1, pageSize: 10, total: 1, totalPages: 1 },
+      }), { status: 200 }));
+      if (url === '/api/sales') return Promise.resolve(new Response(JSON.stringify({
+        sale: { id: 'b20fd33e-f5d2-4e8e-8b35-e5f4b4b6c365',
+          createdAt: '2026-10-08T12:00:00.000Z',
+          items: [{ productId: product.id, quantity: 1, unitPrice: '29.90' }] },
+      }), { status: 201 }));
+      if (url === '/api/sync/status') return Promise.resolve(new Response(JSON.stringify({
+        pending: 2, sent: 1, failed: 0, lastSuccessfulSync: '2026-10-08T12:00:00.000Z',
+      }), { status: 200 }));
+      if (url === '/api/auth/logout') return Promise.resolve(new Response(null, { status: 204 }));
+      throw Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App />);
+    await submitLogin();
+    const user = userEvent.setup();
+    expect(await screen.findByText('Blue Mug')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Sales' }));
+    await user.click(await screen.findByRole('button', { name: 'Select Blue Mug' }));
+    await user.click(screen.getByRole('button', { name: 'Record sale' }));
+    expect(await screen.findByText(/Sale recorded/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Sync' }));
+    expect(await screen.findByText('Pending updates')).toBeInTheDocument();
+    expect(screen.getByText('Pending updates').parentElement).toHaveTextContent('2');
+    expect(fetchMock).toHaveBeenCalledWith('/api/sales', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ items: [{ productId: product.id, quantity: 1 }] }),
+      headers: expect.objectContaining({ 'Idempotency-Key': key }),
+    }));
+    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(await screen.findByRole('heading', { name: 'Sign in to StockSync' })).toBeInTheDocument();
+  });
+
   it('shows a compact product dashboard after authentication', async () => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))

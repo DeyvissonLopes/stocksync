@@ -3,8 +3,8 @@ import type { Identity } from './auth';
 
 type AuthenticatedLayoutProps = {
   role: Identity['role'];
-  activeView: 'products' | 'sales';
-  onNavigate: (view: 'products' | 'sales') => void;
+  activeView: 'products' | 'sales' | 'sync';
+  onNavigate: (view: 'products' | 'sales' | 'sync') => void;
   isSigningOut: boolean;
   logoutError: string | null;
   onSignOut: () => void;
@@ -37,7 +37,7 @@ export function AuthenticatedLayout({
           </div>
         </div>
         <nav aria-label="Main navigation" className="mx-auto flex w-full max-w-6xl gap-1 px-6 sm:px-8">
-          {(['products', 'sales'] as const).map((view) => (
+          {(['products', 'sales', 'sync'] as const).map((view) => (
             <button
               key={view}
               type="button"
@@ -45,7 +45,7 @@ export function AuthenticatedLayout({
               onClick={() => onNavigate(view)}
               className={`border-b-2 px-4 py-3 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-inset ${activeView === view ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-600 hover:text-slate-950'}`}
             >
-              {view === 'products' ? 'Products' : 'Sales'}
+              {view === 'products' ? 'Products' : view === 'sales' ? 'Sales' : 'Sync'}
             </button>
           ))}
         </nav>

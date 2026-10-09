@@ -99,14 +99,14 @@ export function SalesPage({ identity, onSessionExpired }: {
     setPhase('sending');
     setMessage(null);
     try {
-      const sale = await createSale(intent.key, intent.items.map((item) => ({
+      await createSale(intent.key, intent.items.map((item) => ({
         productId: item.product.id, quantity: item.quantity,
       })));
       clearIntent(storageKey);
       setPending(null);
       setLines([]);
       setPhase('idle');
-      setMessage({ kind: 'success', text: `Sale recorded. ID: ${sale.id}` });
+      setMessage({ kind: 'success', text: 'Sale recorded.' });
       setLoadAttempt((attempt) => attempt + 1);
     } catch (error) {
       if (error instanceof SaleRequestError && error.kind === 'unauthorized') {

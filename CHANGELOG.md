@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+- `#change` Give product, sale and sync screens URL routes so refresh and browser history preserve navigation.
+- `#test` Verify direct sync URLs, navigation history and pending-sale recovery.
+- `#change` Show a concise sale confirmation without exposing the sale ID in the UI.
 - `#add` Expose an uncached public `GET /health` liveness endpoint and use it for the API Compose healthcheck.
 - `#test` Verify the health response over HTTP without an authenticated session.
 

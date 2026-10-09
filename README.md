@@ -233,7 +233,9 @@ search, stock filtering and pagination; the sale screen supports multiple
 products and preserves an uncertain request for an explicit retry with its
 original idempotency key. Each screen presents loading, empty or error states
 as applicable, and uses labelled controls, live status messages and alerts for
-basic keyboard and screen-reader support.
+basic keyboard and screen-reader support. Authenticated screens use `/products`,
+`/sales` and `/sync`; these URLs survive refresh and support browser back/forward.
+Deployments must serve the SPA entry point for those paths.
 
 ## Products
 

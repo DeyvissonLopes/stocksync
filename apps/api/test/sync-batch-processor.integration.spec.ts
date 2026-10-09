@@ -149,7 +149,9 @@ describe('sync batch processing over BullMQ, HTTP and PostgreSQL', () => {
   it('retries a transient HTTP failure and confirms the next successful attempt', async () => {
     await withBatch(async (batchId, tenantId, _productId, eventId) => {
       let calls = 0;
+      const starts: number[] = [];
       const fake = createServer((_request, response) => {
+        starts.push(performance.now());
         calls++;
         response.writeHead(calls === 1 ? 503 : 200,
           { 'content-type': 'application/json' });
@@ -160,6 +162,7 @@ describe('sync batch processing over BullMQ, HTTP and PostgreSQL', () => {
         try {
           await waitForCompletion(batchId);
           expect(calls).toBe(2);
+          expect(starts[1]! - starts[0]!).toBeGreaterThanOrEqual(450);
           expect(await db.query(
             'SELECT status, attempts_started, last_error FROM sync_batches WHERE id = $1',
             [batchId],

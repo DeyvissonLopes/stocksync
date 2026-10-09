@@ -35,7 +35,8 @@ function update(productId = randomUUID(), version = '1', stock = 5): Update {
 }
 
 async function withServer(check: (url: string) => Promise<void>, options: {
-  decideOutcome?: () => MockOutcome; timeoutDelayMs?: number; now?: () => number;
+  decideOutcome?: () => MockOutcome; failureMode?: 'off' | 'demo';
+  random?: () => number; timeoutDelayMs?: number; now?: () => number;
 } = {}) {
   const server = createMockSyncServer(db, options);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -214,5 +215,35 @@ describe('external sync mock over HTTP and PostgreSQL', () => {
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
+  });
+
+  it('produces 10% errors and 10% timeouts in demo mode across controlled draws', async () => {
+    const tenantId = randomUUID();
+    const statuses: number[] = [];
+    let draw = 0;
+    let now = 0;
+    let timeoutsBefore = 0;
+    let timeoutsAfter = 0;
+    await withServer(async (url) => {
+      for (let index = 0; index < 100; index++) {
+        const item = update();
+        const { response } = await send(url, tenantId, [item]);
+        statuses.push(response.status);
+        if (response.status === 504) {
+          if ((await stored(tenantId, item.productId)).length === 0) timeoutsBefore++;
+          else timeoutsAfter++;
+        }
+      }
+    }, {
+      failureMode: 'demo',
+      random: () => (draw++ + 0.5) / 100,
+      now: () => { now += 1000; return now; },
+      timeoutDelayMs: 1,
+    });
+    expect(statuses.filter((status) => status === 200)).toHaveLength(80);
+    expect(statuses.filter((status) => status === 503)).toHaveLength(10);
+    expect(statuses.filter((status) => status === 504)).toHaveLength(10);
+    expect({ timeoutsBefore, timeoutsAfter }).toEqual({ timeoutsBefore: 5, timeoutsAfter: 5 });
+    expect(draw).toBe(100);
   });
 });

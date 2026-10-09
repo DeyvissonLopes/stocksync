@@ -12,6 +12,11 @@
 | `#docs` | Documentation update |
 | `#test` | Test or verification change |
 
+## Unreleased
+
+- `#add` Expose an uncached public `GET /health` liveness endpoint and use it for the API Compose healthcheck.
+- `#test` Verify the health response over HTTP without an authenticated session.
+
 ## 1.0.3 — 2026-10-09
 
 Local setup now uses editable API and web environment files without a root

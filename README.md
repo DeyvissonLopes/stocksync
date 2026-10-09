@@ -206,6 +206,12 @@ All four accounts use the demo password `StockSyncDemo123!`, stored as an Argon2
 
 Setup also seeds three products per tenant. Alpha has Blue Mug, A5 Notebook and Black Pen; beta has Tote Bag, Red Mug and Blue Pen. Each tenant has a zero-stock pen. The `DEMO-CAN` and `DEMO-PEN` SKUs exist in both tenants to demonstrate isolation. Re-running `make setup` adds missing demo products without overwriting products that were edited or archived. It records an opening-balance movement for each demo product with positive stock and one pending outbox snapshot per product, including zero-stock products.
 
+## API health
+
+`GET /health` is a public, uncached liveness check for the API process and returns
+`200` with `{ "status": "ok" }`. It does not check PostgreSQL or other dependencies;
+Compose checks the database separately.
+
 ## Authentication and tenant isolation
 
 Protected requests verify the JWT in the HttpOnly cookie, then load the active

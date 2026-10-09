@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { AuthTokenService } from '../src/auth/auth-token.service.js';
 import { APP_CONFIG } from '../src/config/app-config.js';
@@ -251,6 +251,44 @@ describe('POST /sales over HTTP and PostgreSQL', () => {
     expect((await submit([{ productId: a, quantity: 0 }])).status).toBe(400);
     expect(await db.query('SELECT stock FROM products WHERE id = $1', [a]))
       .toEqual([{ stock: 5 }]);
+  });
+
+  it('returns the same safe error envelope for validation, conflict and internal failure', async () => {
+    const id = await product();
+    const invalid = await submit([{ productId: id, quantity: 0 }]);
+    expect(invalid.status).toBe(400);
+    const invalidLogin = await fetch(`${url}/auth/login`, {
+      method: 'POST',
+      headers: { Origin: origin, 'X-StockSync-Request': '1', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'invalid@stocksync.test', password: { value: 'private' } }),
+    });
+    expect(invalidLogin.status).toBe(400);
+    const key = randomUUID();
+    expect((await submit([{ productId: id, quantity: 1 }], key)).status).toBe(201);
+    const conflict = await submit([{ productId: id, quantity: 2 }], key);
+    expect(conflict.status).toBe(409);
+
+    const privateDetail = 'SQL private-error-sentinel SELECT * FROM users';
+    const transaction = vi.spyOn(app.get(DataSource), 'transaction')
+      .mockRejectedValueOnce(new Error(privateDetail));
+    let internal: Response;
+    try {
+      internal = await submit([{ productId: id, quantity: 1 }]);
+    } finally {
+      transaction.mockRestore();
+    }
+    expect(internal.status).toBe(500);
+    const bodies = await Promise.all([invalid, invalidLogin, conflict, internal]
+      .map((response) => response.json()));
+    for (const body of bodies) {
+      expect(Object.keys(body).sort()).toEqual(['code', 'message', 'statusCode']);
+      expect(typeof body.code).toBe('string');
+      expect(typeof body.message).toBe('string');
+      expect(body.message).not.toContain(privateDetail);
+    }
+    expect(bodies.map((body) => body.statusCode)).toEqual([400, 400, 409, 500]);
+    expect(bodies[3]).toEqual({ statusCode: 500, code: 'INTERNAL_SERVER_ERROR',
+      message: 'Internal server error' });
   });
 
   it('allows only one of two overlapping sales to consume the remaining stock', async () => {

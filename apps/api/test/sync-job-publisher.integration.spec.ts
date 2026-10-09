@@ -52,6 +52,7 @@ describe('sync job publication over PostgreSQL', () => {
       queue = createSyncQueue(process.env);
       const job = await queue.getJob(jobId);
       expect(job?.data).toEqual({ batchId, tenantId });
+      expect(job?.opts).toMatchObject({ attempts: 5, backoff: { type: 'stocksync' } });
       expect(await job?.getState()).toBe('waiting');
 
       await new SyncJobPublisher(db, queue).publish(batchId);

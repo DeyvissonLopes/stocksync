@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
+import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
@@ -82,9 +83,11 @@ function status() {
   return fetch(`${url}/sync/status`, { headers: { Cookie: cookie } });
 }
 
-function write(path: string, body: unknown, extraHeaders: Record<string, string> = {}) {
+function write(path: string, body: unknown, extraHeaders: Record<string, string> = {},
+  signal?: AbortSignal) {
   return fetch(`${url}${path}`, {
     method: 'POST',
+    ...(signal ? { signal } : {}),
     headers: { Cookie: cookie, Origin: origin, 'X-StockSync-Request': '1',
       'Content-Type': 'application/json', ...extraHeaders },
     body: JSON.stringify(body),
@@ -147,4 +150,58 @@ describe('product and sale sync flow', () => {
       { status: 'sent', product_version: '2' },
     ]);
   }, 15000);
+
+  it('commits a sale while an external batch request is still waiting for a response', async () => {
+    if (worker) {
+      await worker.close();
+      worker = undefined;
+    }
+    const create = await write('/products',
+      { sku: 'FLOW-BLOCKED', name: 'Blocked destination product', stock: 5, price: '12.90' });
+    expect(create.status).toBe(201);
+    const productId = (await create.json()).product.id as string;
+    const heldBatchId = (await new SyncBatcher(db).createForTenant(tenantId))?.id;
+    expect(heldBatchId).toEqual(expect.any(String));
+    await new SyncJobPublisher(db, queue).publish(heldBatchId!);
+
+    let externalStarted!: () => void;
+    const started = new Promise<void>((resolve) => { externalStarted = resolve; });
+    let releaseExternal!: () => void;
+    const held = new Promise<void>((resolve) => { releaseExternal = resolve; });
+    const blockedServer = createServer(async (request, response) => {
+      for await (const chunk of request) { void chunk; }
+      externalStarted();
+      await held;
+      response.writeHead(503).end();
+    });
+    await new Promise<void>((resolve) => blockedServer.listen(0, '127.0.0.1', resolve));
+    const address = blockedServer.address();
+    if (!address || typeof address === 'string') throw new Error('Missing blocked mock address');
+    const blockedWorker = createSyncWorker(process.env,
+      new SyncBatchProcessor(db, `http://127.0.0.1:${address.port}/batches`));
+    let startTimeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([started, new Promise<never>((_, reject) => {
+        startTimeout = setTimeout(() => reject(new Error('External batch did not start')), 5000);
+      })]);
+      clearTimeout(startTimeout);
+      startTimeout = undefined;
+      const sale = await write('/sales', { items: [{ productId, quantity: 1 }] },
+        { 'Idempotency-Key': randomUUID() }, AbortSignal.timeout(3000));
+      expect(sale.status).toBe(201);
+      expect(await db.query('SELECT stock FROM products WHERE id = $1', [productId]))
+        .toEqual([{ stock: 4 }]);
+      expect(await db.query(
+        'SELECT status FROM outbox_events WHERE product_id = $1 ORDER BY product_version',
+        [productId],
+      )).toEqual([{ status: 'pending' }, { status: 'pending' }]);
+    } finally {
+      clearTimeout(startTimeout);
+      releaseExternal();
+      await blockedWorker.close();
+      await (await queue.getJob(syncBatchJobId(heldBatchId!)))?.remove();
+      await new Promise<void>((resolve, reject) =>
+        blockedServer.close((error) => error ? reject(error) : resolve()));
+    }
+  }, 12000);
 });

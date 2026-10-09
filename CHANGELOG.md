@@ -12,6 +12,15 @@
 | `#docs` | Documentation update |
 | `#test` | Test or verification change |
 
+## 1.0.2 — 2026-10-09
+
+The challenge requirements now have direct test references, with additional
+coverage for asynchronous delivery, retry behavior and safe API errors.
+
+- `#test` Prove that a sale commits while external delivery is still waiting, retry delay and queue configuration, and the mock's controlled 10% error plus 10% timeout distribution.
+- `#fix` Standardize Nest API errors as `statusCode`, `code` and `message`, with a generic response for unexpected server failures.
+- `#docs` Map the required challenge criteria to exact test definitions and link the matrix from the README.
+
 ## 1.0.1 — 2026-10-08
 
 Local setup now reports concise progress and opens the web app on graphical

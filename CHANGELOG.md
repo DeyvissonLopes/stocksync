@@ -11,8 +11,11 @@
 | `#security` | Security fix or hardening |
 | `#docs` | Documentation update |
 | `#test` | Test or verification change |
-
 ## Unreleased
+
+## 1.0.4 — 2026-10-09
+
+Adds API health reporting and persistent frontend navigation.
 
 - `#change` Give product, sale and sync screens URL routes so refresh and browser history preserve navigation.
 - `#test` Verify direct sync URLs, navigation history and pending-sale recovery.

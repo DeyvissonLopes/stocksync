@@ -22,6 +22,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   sessionStorage.clear();
+  window.history.replaceState({}, '', '/');
   vi.unstubAllGlobals();
 });
 
@@ -133,6 +134,7 @@ describe('session lifecycle', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'New sale' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/sales');
     expect(screen.getByRole('alert')).toHaveTextContent('Sale status unknown');
     expect(screen.queryByRole('heading', { name: 'Inventory dashboard' })).not.toBeInTheDocument();
   });
@@ -148,9 +150,18 @@ describe('session lifecycle', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Sales' }));
     expect(await screen.findByRole('heading', { name: 'New sale' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/sales');
     expect(screen.queryByRole('heading', { name: 'Inventory dashboard' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Products' }));
     expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/products');
+
+    window.history.back();
+    expect(await screen.findByRole('heading', { name: 'New sale' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/sales');
+    window.history.forward();
+    expect(await screen.findByRole('heading', { name: 'Inventory dashboard' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/products');
   });
 
   it('opens the tenant sync status from the authenticated navigation', async () => {
@@ -167,9 +178,24 @@ describe('session lifecycle', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Sync' }));
 
     expect(await screen.findByRole('heading', { name: 'Sync status' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/sync');
     expect(fetchMock).toHaveBeenCalledWith('/api/sync/status', expect.objectContaining({
       credentials: 'same-origin', signal: expect.any(AbortSignal),
     }));
+  });
+
+  it('restores the requested page from its URL after the session check', async () => {
+    window.history.replaceState({}, '', '/sync');
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ user: identity }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        pending: 2, sent: 1, failed: 0, lastSuccessfulSync: null,
+      }), { status: 200 })));
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Sync status' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/sync');
   });
 
   it('moves from login through products and a sale to the latest sync status', async () => {

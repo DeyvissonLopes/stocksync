@@ -91,7 +91,8 @@ describe('sale', () => {
       },
       body: JSON.stringify({ items: [{ productId: product.id, quantity: 2 }] }),
     });
-    expect(await screen.findByText(/Sale recorded/)).toBeInTheDocument();
+    expect(await screen.findByRole('status')).toHaveTextContent(/^Sale recorded\.$/);
+    expect(screen.getByRole('status')).not.toHaveTextContent('b20fd33e-f5d2-4e8e-8b35-e5f4b4b6c365');
     expect(sessionStorage.length).toBe(0);
   });
 

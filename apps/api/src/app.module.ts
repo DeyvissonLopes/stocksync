@@ -8,6 +8,7 @@ import { APP_CONFIG } from './config/app-config.js';
 import type { AppConfig } from './config/app-config.js';
 import { ConfigModule } from './config/config.module.js';
 import { loadDatabaseOptions } from './database/database-options.js';
+import { HealthModule } from './health/health.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { SalesModule } from './sales/sales.module.js';
 import { BrowserSecurityModule } from './security/browser-security.module.js';
@@ -20,6 +21,7 @@ import { SyncModule } from './sync/sync.module.js';
     AuthModule,
     AuthTokenModule,
     BrowserSecurityModule,
+    HealthModule,
     ProductsModule,
     SalesModule,
     SyncModule,

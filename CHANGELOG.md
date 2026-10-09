@@ -11,6 +11,17 @@
 | `#security` | Security fix or hardening |
 | `#docs` | Documentation update |
 | `#test` | Test or verification change |
+## Unreleased
+
+## 1.0.4 — 2026-10-09
+
+Adds API health reporting and persistent frontend navigation.
+
+- `#change` Give product, sale and sync screens URL routes so refresh and browser history preserve navigation.
+- `#test` Verify direct sync URLs, navigation history and pending-sale recovery.
+- `#change` Show a concise sale confirmation without exposing the sale ID in the UI.
+- `#add` Expose an uncached public `GET /health` liveness endpoint and use it for the API Compose healthcheck.
+- `#test` Verify the health response over HTTP without an authenticated session.
 
 ## 1.0.3 — 2026-10-09
 

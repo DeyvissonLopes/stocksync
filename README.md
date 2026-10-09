@@ -140,6 +140,8 @@ make check
 lint, tests and build, then web tests, type checking and build. The API tests
 use a separate PostgreSQL test service. Tests cover concurrent sales,
 idempotency, tenant isolation, retries and the product/sale-to-mock sync path.
+See the [challenge requirements and test evidence matrix](REQUIREMENTS_TEST_MATRIX.md)
+for exact test names covering the required parts of the assessment.
 
 | Required scenario | Coverage |
 | --- | --- |

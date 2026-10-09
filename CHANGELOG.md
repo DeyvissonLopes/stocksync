@@ -12,6 +12,14 @@
 | `#docs` | Documentation update |
 | `#test` | Test or verification change |
 
+## 1.0.3 — 2026-10-09
+
+Local setup now uses editable API and web environment files without a root
+`.env` link.
+
+- `#change` Read Compose settings from `apps/api/.env` without creating a repository-root `.env` link.
+- `#change` Create an editable `apps/web/.env` for the Vite proxy target instead of fixing it in Compose.
+
 ## 1.0.2 — 2026-10-09
 
 The challenge requirements now have direct test references, with additional

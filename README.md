@@ -91,7 +91,8 @@ edit that file only when you need different settings.
 
 ```sh
 [ -f apps/api/.env ] || cp apps/api/.env.example apps/api/.env
-[ -e .env ] || ln -s apps/api/.env .env
+[ -f apps/web/.env ] || cp apps/web/.env.example apps/web/.env
+export COMPOSE_ENV_FILES=apps/api/.env
 docker compose --profile sync build
 docker compose run --rm api npm ci --include=dev
 docker compose run --no-deps --rm web npm ci --include=dev
@@ -99,6 +100,14 @@ docker compose run --rm api npm run migration:run
 docker compose run --rm api npm run sync:queue:migrate
 docker compose run --rm api npm run seed:run
 docker compose --profile sync up --wait --wait-timeout 60 --detach
+```
+
+In a new terminal, pass `--env-file apps/api/.env` to every direct Compose
+command; the export above applies only to the shell where it was run. For
+example, to remove this project's containers **and database volumes**:
+
+```sh
+docker compose --env-file apps/api/.env --profile test --profile sync down --volumes
 ```
 
 ## Run the project
@@ -118,7 +127,7 @@ graphical Linux session is available. On later runs, start all services with
 keeping the database volumes.
 
 Setup applies the application migrations and the separate BullMQ schema migration.
-For an existing database, run `docker compose run --rm api npm run sync:queue:migrate`
+For an existing database, run `docker compose --env-file apps/api/.env run --rm api npm run sync:queue:migrate`
 before starting a sync worker or publisher.
 
 Web: http://127.0.0.1:5173
@@ -159,7 +168,12 @@ make help
 ## Environment variables
 
 `make setup` creates `apps/api/.env` from `apps/api/.env.example` when the
-file does not exist, then links it at the repository root for Docker Compose.
+file does not exist. Make passes it to Compose with `--env-file`; no root
+`.env` is needed.
+It also creates `apps/web/.env` from `apps/web/.env.example` when missing.
+The web file configures the Vite server inside Compose. Edit
+`API_PROXY_TARGET` there to change its upstream, then run `make up` to recreate
+the web service. Browser requests still use the same-origin `/api` path.
 The example values configure the development and test databases, browser origin,
 local JWT secret, sync destination and stable mock behavior. No additional
 configuration is required to run the project locally.
@@ -177,6 +191,7 @@ configuration is required to run the project locally.
 | `TEST_DB_USER`, `TEST_DB_PASSWORD`, `TEST_DB_NAME` | `stocksync_test`, `stocksync_test_local`, `stocksync_test` | Test database credentials and name. |
 | `SYNC_DESTINATION_URL` | `http://sync-mock:3001/batches` | Batch endpoint used by the worker. Change it for another sync destination. |
 | `MOCK_SYNC_FAILURE_MODE` | `off` | Mock behavior: `off` is stable; `demo` enables simulated errors and timeouts. |
+| `API_PROXY_TARGET` (web file) | `http://api:3000` | Vite's `/api` upstream inside the Compose network. |
 
 ## Demo tenants, users and products
 
@@ -345,10 +360,6 @@ sale to the demo database; the sale-to-sync path is covered by the PostgreSQL
 and queue integration test.
 
 ## Editor setup (optional)
-
-### VS Code Dev Container
-
-Install the **Dev Containers** extension and select **Dev Containers: Reopen in Container** from the Command Palette.
 
 ### Local VS Code
 
